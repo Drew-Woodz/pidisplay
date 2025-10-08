@@ -2,12 +2,14 @@ import pygame
 import os
 import time
 
-# Initialize Pygame
+# Initialize Pygame with direct framebuffer access
+os.putenv('SDL_VIDEODRIVER', 'directfb')  # Try directfb instead of fbcon
+os.putenv('SDL_FBDEV', '/dev/fb0')       # Target the LCD framebuffer
 pygame.init()
 screen = pygame.display.set_mode((480, 320))  # Waveshare 3.5" resolution
 
 # Create images folder if it doesn’t exist
-image_folder = "/home/dewywoodz/pidisplay/images"
+image_folder = "images"
 if not os.path.exists(image_folder):
     os.makedirs(image_folder)
 
