@@ -314,7 +314,7 @@ Commit service/loop/render scripts to the repo; the unit files live in `/etc/sys
 
 # What I’ll turn this into
 
-Tomorrow we can turn this report into a **single idempotent install script** that:
+Turn this report into a **single idempotent install script** that:
 
 * Backs up and edits `/boot/firmware/config.txt` safely (only once).
 * Installs the overlay and packages.
