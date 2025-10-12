@@ -325,3 +325,93 @@ Turn this report into a **single idempotent install script** that:
 * Verifies `/dev/fb1` and prints a green “ready” banner.
 
 That plus the `.gitignore` will make reflashes painless and reproducible—and gift-able.
+
+---
+
+## Development Log — Entry 2 (Recovery & Expansion)
+
+### The Great Detour
+
+We briefly broke everything.
+
+During an attempt to integrate a weather card, multiple approaches for drawing and displaying images became mixed: `fbi`-based rendering, ad-hoc framebuffer writes, and partial service edits.
+The result was a blank screen and an inconsistent update pipeline — `fbi` running without a proper VT, timers stepping on each other, and atomic saves disabled in places. We spent a few rounds chasing “maybe this will fix it” symptoms before recognizing the real problem: **two competing display mechanisms** coexisting.
+
+### Diagnosis and Recovery
+
+We halted, stripped the system down, and verified the intended behavior:
+
+1. **Only one viewer** — `run_slideshow.sh` looping with `fbi` on `/dev/fb1` attached to VT1.
+2. **Only one renderer** — Python scripts outputting complete PNGs atomically.
+3. **One update mechanism per card** — independent `systemd` timers for each card type.
+4. **Atomic image replacement** — always write to `.tmp` and `os.replace()`.
+
+After cleaning stray units, re-enabling VT1, and restoring the atomic write pattern, the display returned to normal operation.
+**Lesson learned:** don’t mix framebuffer writers. The viewer owns `/dev/fb1`; everything else just updates image files.
+
+### New Components and Improvements
+
+#### 1. Weather & Geo Integration
+
+* Added a new **weather card** powered by **Open-Meteo**, fetching current conditions and a short-term forecast.
+* Added a lightweight **geo-location step** using `ip-api.com` to determine coordinates, city, and timezone automatically.
+* Weather updates now occur via a dedicated `weather-update.timer` (~10 min cadence).
+
+#### 2. BTC, News, and Independent Schedules
+
+* BTC updates every ~30 s.
+* News refreshes every 2 min.
+* Each card has its own `render_cards.py --only <type>` call managed by its own service/timer pair.
+* This separation keeps data fresh without redrawing slow cards unnecessarily.
+
+#### 3. Clock Card
+
+* Implemented a minimal **clock card** (`render_clock.py`) showing local time and date.
+* Refreshes every 15 s via `clock-update.timer`.
+* Seconds removed for cleaner visuals (refresh granularity makes them redundant).
+* Integrated into the slideshow rotation for constant time reference.
+
+#### 4. Viewer Refinements
+
+* `run_slideshow.sh` rebuilt as a **dynamic loop** that scans the `images/` directory and displays known cards in a preferred order:
+
+  ```
+  clock → btc → news → weather
+  ```
+* Automatically re-reads available PNGs each cycle; new cards appear without restarting the viewer.
+* Added fallback behavior if no images exist (prevents runaway loop errors).
+
+#### 5. Rendering Architecture Refactor
+
+* `render_cards.py` restructured with explicit functions `render_btc()`, `render_news()`, and `render_weather()`.
+* Added CLI argument `--only` for selective card generation.
+* Restored consistent font handling (`DejaVuSans`) and color constants for visual parity.
+* Added `is_stale()` timestamp check for data age labeling (“STALE” footer).
+
+#### 6. Reliability & Process
+
+* All services now run as **oneshot** jobs triggered by timers, fully decoupled from the viewer.
+* Verified `tty1` ownership, confirmed that the slideshow runs continuously at boot, and ensured that no unit restarts interfere with display stability.
+* Time sync validated (`timedatectl set-ntp true`) to keep timestamps consistent across cards.
+
+### Current System Summary
+
+| Component              | Role                           | Trigger        | Output                               |
+| ---------------------- | ------------------------------ | -------------- | ------------------------------------ |
+| `btc-update.timer`     | Fetch BTC price and render     | every 30 s     | `images/btc.png`                     |
+| `news-update.timer`    | Fetch RSS headlines and render | every 2 min    | `images/news.png`                    |
+| `weather-update.timer` | Geo + weather update           | every 10 min   | `images/weather.png`                 |
+| `clock-update.timer`   | Render time/date card          | every 15 s     | `images/clock.png`                   |
+| `pidisplay.service`    | Continuous viewer loop         | boot / restart | Displays rotating PNGs on `/dev/fb1` |
+
+### Lessons Learned
+
+* Keep **renderer logic and viewer logic isolated** — the viewer only shows finished PNGs.
+* Always use **atomic image replacement** to prevent corruption mid-display.
+* Don’t re-invent the framebuffer path — `fbi` is sufficient and reliable when used correctly.
+* Version-control all systemd unit templates in the repo; install them into `/etc/systemd/system` with `sudo cp` to ensure reproducibility.
+* Document and re-verify every timer after adding a new card — mismatched schedules are easy to miss.
+* Never trust a confident “this should fix it” without validating the entire signal path: fetch → JSON → render → PNG → viewer.
+
+---
+

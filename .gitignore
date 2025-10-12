@@ -1,0 +1,16 @@
+cat > ~/pidisplay/.gitignore <<'EOF'
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Rendered & temp assets
+images/*.png
+images/*.tmp
+state/*.json
+images_archive/
+
+# VS Code server / artifacts
+.vscode-server/
+.vscode/
+EOF
