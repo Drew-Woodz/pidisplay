@@ -28,8 +28,10 @@ def main():
         "longitude": lon,
         "hourly": "temperature_2m,precipitation_probability,weathercode",
         "current_weather": "true",
-        "timezone": tz
+        "timezone": tz,
+        "temperature_unit": "fahrenheit"
     }
+
     try:
         r = requests.get("https://api.open-meteo.com/v1/forecast", params=params, timeout=6)
         r.raise_for_status()
@@ -40,7 +42,7 @@ def main():
         out = {
             "loc": {"lat":lat, "lon":lon, "tz":tz, "city": geo.get("city")},
             "now": {
-                "temp_c": now.get("temperature"),
+                "temp_f": now.get("temperature"),
                 "windspeed": now.get("windspeed"),
                 "weathercode": now.get("weathercode"),
                 "ts": now.get("time")
@@ -56,7 +58,7 @@ def main():
         for i, t in enumerate(times):
             out["hourly"].append({
                 "time": t,
-                "temp_c": temps[i] if i < len(temps) else None,
+                "temp_f": temps[i] if i < len(temps) else None,
                 "pop": pops[i] if i < len(pops) else None,
                 "weathercode": wcs[i] if i < len(wcs) else None
             })
