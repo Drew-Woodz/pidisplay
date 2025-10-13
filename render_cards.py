@@ -106,12 +106,12 @@ def render_weather():
         return atomic_save(img, "weather.png")
 
     noww = data["now"]
-    temp = noww.get("temp_c")
+    temp = noww.get("temp_f")
     wc   = noww.get("weathercode")
     desc = WCMAP.get(int(wc) if wc is not None else -1, "—")
 
     # Big temp + description
-    main = f"{int(round(temp))}°C" if temp is not None else "—°"
+    main = f"{int(round(temp))}°F" if temp is not None else "—°"
     d.text((16, 60), main, fill=FG, font=font(56))
     d.text((16, 126), desc, fill=(180, 220, 255), font=font(26))
 
@@ -122,7 +122,7 @@ def render_weather():
     x = 16
     for h in hourly:
         label = (h.get("time", "--")[11:16])  # HH:MM
-        t = h.get("temp_c")
+        t = h.get("temp_f")
         pop = h.get("pop")
         d.text((x, y), label, fill=MUTED, font=font(16))
         d.text((x, y+18), f"{int(round(t))}°" if t is not None else "—°", fill=FG, font=font(20))
