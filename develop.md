@@ -415,3 +415,130 @@ After cleaning stray units, re-enabling VT1, and restoring the atomic write patt
 
 ---
 
+## Development Log — Entry 3 (Weather Card – Fahrenheit Conversion)
+
+**Summary:**
+Converted the weather card and its data fetcher from Celsius to Fahrenheit display and data handling.
+
+**Details:**
+
+* Edited `fetch_weather.py` to request Fahrenheit directly from Open-Meteo using:
+  `params["temperature_unit"] = "fahrenheit"`.
+* Replaced all instances of `temp_c` with `temp_f` in both `fetch_weather.py` and `render_cards.py` to align with the new API field names.
+* Updated label formatting in `render_weather()` to display `°F`.
+* Regenerated weather data and verified correct Fahrenheit readings on the device display.
+
+**Result:**
+Weather card now pulls and renders temperature values in Fahrenheit with no intermediate conversion math. Functionality confirmed live on device.
+
+---
+
+### Master Plan Created
+
+A comprehensive **Master Plan** document (`master_plan.md`) was created to define upcoming milestones and overall architecture.
+No structural or code changes from that plan have been implemented yet — it currently serves only as the **roadmap reference** for future development and documentation updates.
+
+---
+
+## Development Log — Entry 3 (News pipeline + UI, clock polish)
+
+**What changed (high level)**
+We implemented a **real news ingestion pipeline** with per-source fetchers → a merged `state/news.json` → clustered rendering in `render_cards.py`. We also added the **clock card**, moved its timestamping logic out of the news card footer, and polished the viewer loop.
+
+### News ingestion (fetchers)
+
+* New directory: `pidisplay/fetch_news/`
+
+  * `fetch_fox.py`, `fetch_breitbart.py` (RSS parsers writing into `~/pidisplay/state/news.json`)
+* Each fetcher:
+
+  * Normalizes items to a shared schema and **appends/updates** into `news.json`.
+  * Keeps a rolling window (~200 items) and drops items older than 24h.
+* **Systemd units** (oneshot) + **timers**:
+
+  * `news-fox.service` / `news-fox.timer` (3 min)
+  * `news-breitbart.service` / `news-breitbart.timer` (3 min)
+  * `news-render.service` / `news-render.timer` (2 min; redraw card)
+
+**`state/news.json` schema (current)**
+
+```json
+{
+  "items": [
+    {
+      "id": "source-native-id-or-hash",
+      "title": "Headline text",
+      "source": "fox|breitbart|ap|...",
+      "ts": "2025-10-12T03:40:03Z",
+      "tags": ["breaking"]               // optional
+    }
+  ],
+  "updated": "2025-10-12T03:40:03Z"
+}
+```
+
+### News rendering (cards)
+
+* `render_cards.py` now **reads** `state/news.json` (no site scraping here).
+* Added `_norm_key()` + **`cluster_news()`** to group same/near-same headlines.
+
+  * Near-duplicate merge via token **Jaccard similarity** (threshold ~0.85).
+  * Cluster representative = newest item; exposes `count` for consensus `(×N)`.
+* New **stacked-cell UI** (fits **5 cells** at 480×320):
+
+  * Light **source-tinted background**, **1px border**, **2–3 px radius**.
+  * **24×24 icon** at right (`~/pidisplay/icons/<source>.png`).
+  * Headline in **dark text** (on light cells), 2 lines max with ellipsis.
+  * Tiny `(×N)` badge when multiple sources carry the story.
+  * Timestamp moved to **top-right under header** (muted, small).
+* Source style map:
+
+  * `SOURCE_STYLES = {"fox": {...}, "breitbart": {...}, "ap": {...}, "_default": {...}}`
+  * Easy to extend by dropping an icon and adding a style entry.
+
+### Clock card
+
+* `render_clock.py` renders `images/clock.png` every **15 s** (no seconds displayed, by design).
+* `clock-update.service` / `clock-update.timer` manage the schedule.
+* Included in slideshow order with other PNGs.
+
+### Viewer loop (unchanged behavior, tidier)
+
+* `run_slideshow.sh` loops on VT1 over **`/dev/fb1`** via `fbi`.
+* Preferred order: `clock → btc → news → weather` (auto-detects missing files).
+* Still uses **atomic write** pattern everywhere to avoid tearing.
+
+### Ops notes / guardrails
+
+* **One writer rules the screen**: only the `fbi` viewer touches `/dev/fb1`; all other processes just write PNGs.
+* **Atomic PNG writes**: always `.tmp` → `os.replace()`.
+* **Timers are independent** to respect cadence:
+
+  * BTC ~30s, News render 2m, Weather 10m, Clock 15s.
+* **Icons**: put **24×24 PNGs** in `~/pidisplay/icons/` with lowercase names (`fox.png`, `breitbart.png`, …). Missing icons get a neutral placeholder box.
+
+### Quick verification
+
+```bash
+# Timers present and scheduled:
+systemctl list-timers --all | egrep 'news-fox|news-breitbart|news-render|btc-update|weather-update|clock-update'
+
+# Kick first runs:
+sudo systemctl start news-fox.service news-breitbart.service news-render.service
+sudo systemctl start btc-update.service weather-update.service clock-update.service
+
+# Check image mtimes advance:
+watch -n 5 'ls -l --time-style=+"%H:%M:%S" ~/pidisplay/images/*.png'
+```
+
+### Known limits / deferred items
+
+* **BREAKING** label is deferred (kept simple for now).
+* No touch/scroll yet; the card shows the **top 5** clusters only.
+* We still rely on public RSS; if sources rate-limit or 403, the fetchers back off and keep last data.
+
+**Result:**
+News headlines now flow reliably from multiple sources into a single, clear card with icons and soft source colors; duplicates are collapsed; cadence is decoupled; the viewer remains rock-solid. The clock card keeps time fresh between slower updates.
+
+---
+
