@@ -185,21 +185,48 @@ def render_weather():
     d.text((16, 126), desc, fill=(180, 220, 255), font=font(26))
 
     # Mini 6-hour strip
+    from datetime import datetime, timedelta
+
     y = 180
-    d.text((16, y-24), "Next hours", fill=(180, 180, 180), font=font(18))
-    hourly = (data.get("hourly", []) or [])[:6]
+    d.text((16, y-24), "Coming Up", fill=(180, 180, 180), font=font(18))
+
+    hourly_list = (data.get("hourly", []) or [])
+    # Build a quick lookup by ISO hour key, e.g. "2025-10-13T18:00"
+    hour_map = {h.get("time"): h for h in hourly_list}
+
+    now = datetime.now()
+    start = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+
+    labels = []
+    keys = []
+    t = start
+    for _ in range(6):
+        # Label like "6 PM" (fallback for systems without %-I)
+        try:
+            lbl = t.strftime("%-I %p")
+        except ValueError:
+            lbl = t.strftime("%I %p").lstrip("0")
+        labels.append(lbl)
+        keys.append(t.strftime("%Y-%m-%dT%H:00"))
+        t += timedelta(hours=1)
+
     x = 16
-    for h in hourly:
-        label = (h.get("time", "--")[11:16])  # HH:MM
-        t = h.get("temp_f")
-        pop = h.get("pop")
-        d.text((x, y), label, fill=MUTED, font=font(16))
-        d.text((x, y+18), f"{int(round(t))}°" if t is not None else "—°", fill=FG, font=font(20))
-        if pop is not None:
-            d.text((x, y+38), f"{int(pop)}%", fill=(140, 200, 255), font=font(14))
+    for lbl, key in zip(labels, keys):
+        h = hour_map.get(key, {})
+        tf = h.get("temp_f")
+        pp = h.get("pop")
+
+        d.text((x, y), lbl, fill=MUTED, font=font(16))
+        d.text((x, y+18), f"{int(round(tf))}°" if isinstance(tf, (int, float)) else "—°", fill=FG, font=font(20))
+        if isinstance(pp, (int, float)):
+            d.text((x, y+38), f"{int(pp)}%", fill=(140, 200, 255), font=font(14))
+        else:
+            d.text((x, y+38), "—", fill=(100, 120, 140), font=font(14))
+
         x += 72
         if x > W - 64:
             break
+
 
     # Footer time: STALE if older than 30 min
     stale = is_stale(data.get("updated", ""), max_age_sec=1800)

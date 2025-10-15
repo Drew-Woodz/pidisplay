@@ -51,14 +51,18 @@ def main():
             "updated": datetime.now(timezone.utc).isoformat().replace("+00:00","Z"),
             "src": "open-meteo"
         }
-        times = hourly.get("time", [])[:6]
-        temps = (hourly.get("temperature_2m", []) or [])[:6]
-        pops  = (hourly.get("precipitation_probability", []) or [])[:6]
-        wcs   = (hourly.get("weathercode", []) or [])[:6]
+        HORIZON = 36
+        times   = (hourly.get("time", []) or [])[:HORIZON]
+        temps_f = (hourly.get("temperature_2m", []) or [])[:HORIZON]
+        pops    = (hourly.get("precipitation_probability", []) or [])[:HORIZON]
+        wcs     = (hourly.get("weathercode", []) or [])[:HORIZON]
+
+
+        out["hourly"] = []
         for i, t in enumerate(times):
             out["hourly"].append({
-                "time": t,
-                "temp_f": temps[i] if i < len(temps) else None,
+                "time": t,  # e.g. "2025-10-13T23:00"
+                "temp_f": temps_f[i] if i < len(temps_f) else None,
                 "pop": pops[i] if i < len(pops) else None,
                 "weathercode": wcs[i] if i < len(wcs) else None
             })
