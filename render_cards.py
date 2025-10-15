@@ -2,7 +2,6 @@
 # Render BTC / News / Weather cards to fixed PNG filenames atomically.
 import os, io, math, time, textwrap, argparse, json
 from datetime import datetime
-import requests, feedparser
 from PIL import Image, ImageDraw, ImageFont
 
 # ---------- Paths & constants ----------
@@ -15,7 +14,77 @@ FG = (235, 235, 235)
 ACCENT = (0, 200, 255)
 MUTED = (150, 150, 150)
 
+# ---------- News cell style (icons + tints) ----------
+ICON_DIR = os.path.expanduser("~/pidisplay/icons")
+
+# per-source soft tints + border; add more as you add fetchers
+SOURCE_STYLES = {
+    "fox":       {"bg": (230,240,255), "bd": (170,200,255), "icon": "fox.png"},
+    "breitbart": {"bg": (255,240,225), "bd": (255,205,160), "icon": "breitbart.png"},
+    "ap":        {"bg": (238,238,238), "bd": (210,210,210), "icon": "ap.png"},
+    "_default":  {"bg": (228,232,236), "bd": (196,204,212), "icon": None},
+}
+
+def get_source_style(src: str):
+    return SOURCE_STYLES.get((src or "").lower(), SOURCE_STYLES["_default"])
+
+_icon_cache = {}
+def load_icon(path, size):
+    key = (path, size)
+    if key in _icon_cache:
+        return _icon_cache[key]
+    try:
+        img = Image.open(path).convert("RGBA").resize((size,size), Image.LANCZOS)
+    except Exception:
+        # fallback: simple placeholder if no icon
+        img = Image.new("RGBA", (size,size), (0,0,0,0))
+        dr = ImageDraw.Draw(img)
+        dr.rectangle([0,0,size-1,size-1], outline=(60,60,60), width=1)
+    _icon_cache[key] = img
+    return img
+
+def wrap_text_px(draw, text, font, max_width_px, max_lines=2):
+    """Greedy wrap to pixel width; returns up to max_lines lines."""
+    words = (text or "").split()
+    lines, cur = [], ""
+    for w in words:
+        test = w if not cur else (cur + " " + w)
+        wpx = draw.textbbox((0,0), test, font=font)[2]
+        if wpx <= max_width_px:
+            cur = test
+        else:
+            if cur:
+                lines.append(cur)
+                if len(lines) == max_lines:
+                    return lines
+            cur = w
+    if cur and len(lines) < max_lines:
+        lines.append(cur)
+    return lines
+
+
+
 # ---------- Helpers ----------
+def _norm_key(title):
+    import re
+    return " ".join(re.sub(r"[^a-z0-9 ]+"," ", (title or "").lower()).split())
+
+def cluster_news(items, top_n=5):
+    groups = {}
+    for it in items:
+        k = _norm_key(it.get("title"))
+        if not k:
+            continue
+        groups.setdefault(k, []).append(it)
+    reps = []
+    for k, group in groups.items():
+        rep = max(group, key=lambda it: it.get("ts",""))
+        rep = dict(rep)
+        rep["count"] = len(group)
+        reps.append(rep)
+    reps.sort(key=lambda it: it.get("ts",""), reverse=True)
+    return reps[:top_n]
+
 def font(size: int):
     # DejaVuSans is present on Lite when fonts-dejavu-core is installed
     return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size)
@@ -106,7 +175,7 @@ def render_weather():
         return atomic_save(img, "weather.png")
 
     noww = data["now"]
-    temp = noww.get("temp_f")
+    temp = noww.get("temp_f")   # using Fahrenheit
     wc   = noww.get("weathercode")
     desc = WCMAP.get(int(wc) if wc is not None else -1, "—")
 
@@ -116,21 +185,48 @@ def render_weather():
     d.text((16, 126), desc, fill=(180, 220, 255), font=font(26))
 
     # Mini 6-hour strip
+    from datetime import datetime, timedelta
+
     y = 180
-    d.text((16, y-24), "Next hours", fill=(180, 180, 180), font=font(18))
-    hourly = (data.get("hourly", []) or [])[:6]
+    d.text((16, y-24), "Coming Up", fill=(180, 180, 180), font=font(18))
+
+    hourly_list = (data.get("hourly", []) or [])
+    # Build a quick lookup by ISO hour key, e.g. "2025-10-13T18:00"
+    hour_map = {h.get("time"): h for h in hourly_list}
+
+    now = datetime.now()
+    start = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+
+    labels = []
+    keys = []
+    t = start
+    for _ in range(6):
+        # Label like "6 PM" (fallback for systems without %-I)
+        try:
+            lbl = t.strftime("%-I %p")
+        except ValueError:
+            lbl = t.strftime("%I %p").lstrip("0")
+        labels.append(lbl)
+        keys.append(t.strftime("%Y-%m-%dT%H:00"))
+        t += timedelta(hours=1)
+
     x = 16
-    for h in hourly:
-        label = (h.get("time", "--")[11:16])  # HH:MM
-        t = h.get("temp_f")
-        pop = h.get("pop")
-        d.text((x, y), label, fill=MUTED, font=font(16))
-        d.text((x, y+18), f"{int(round(t))}°" if t is not None else "—°", fill=FG, font=font(20))
-        if pop is not None:
-            d.text((x, y+38), f"{int(pop)}%", fill=(140, 200, 255), font=font(14))
+    for lbl, key in zip(labels, keys):
+        h = hour_map.get(key, {})
+        tf = h.get("temp_f")
+        pp = h.get("pop")
+
+        d.text((x, y), lbl, fill=MUTED, font=font(16))
+        d.text((x, y+18), f"{int(round(tf))}°" if isinstance(tf, (int, float)) else "—°", fill=FG, font=font(20))
+        if isinstance(pp, (int, float)):
+            d.text((x, y+38), f"{int(pp)}%", fill=(140, 200, 255), font=font(14))
+        else:
+            d.text((x, y+38), "—", fill=(100, 120, 140), font=font(14))
+
         x += 72
         if x > W - 64:
             break
+
 
     # Footer time: STALE if older than 30 min
     stale = is_stale(data.get("updated", ""), max_age_sec=1800)
@@ -138,34 +234,127 @@ def render_weather():
     d.text((16, H-30), f"{footer} {datetime.now().strftime('%b %d %I:%M %p')}", fill=MUTED, font=font(18))
     return atomic_save(img, "weather.png")
 
+# ---------- News: clustering from state/news.json ----------
+
+def _similar(a: str, b: str, thresh=0.85):
+    ta = set(_norm_key(a).split())
+    tb = set(_norm_key(b).split())
+    if not ta or not tb: return False
+    j = len(ta & tb) / len(ta | tb)
+    return j >= thresh
+
+def cluster_news(items, top_n=5):
+    groups = []
+    for it in sorted(items, key=lambda x: x.get("ts",""), reverse=True):
+        placed = False
+        for g in groups:
+            # compare to representative title of group[0]
+            if _similar(it.get("title",""), g[0].get("title","")):
+                g.append(it); placed = True; break
+        if not placed:
+            groups.append([it])
+
+    reps = []
+    for g in groups:
+        rep = max(g, key=lambda it: it.get("ts",""))
+        rep = dict(rep)
+        rep["count"] = len(g)
+        reps.append(rep)
+    reps.sort(key=lambda it: it.get("ts",""), reverse=True)
+    return reps[:top_n]
+
 def render_news():
-    # Fetch Reuters top RSS
-    titles = []
-    try:
-        feed = feedparser.parse("https://feeds.reuters.com/reuters/topNews")
-        for e in feed.entries[:5]:
-            titles.append(e.title.strip())
-    except Exception:
-        titles = ["(news fetch failed)"]
+    # read merged feed from per-source fetchers
+    state = load_json(os.path.expanduser("~/pidisplay/state/news.json")) or {}
+    items = state.get("items", []) or []
+    clusters = cluster_news(items, top_n=5) if items else []
 
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
     draw_header(d, "Top Headlines")
 
-    y = 52
-    for i, t in enumerate(titles):
-        wrapped = textwrap.wrap(t, width=40)
-        bullet = f"{i+1}."
-        d.text((16, y), bullet, fill=ACCENT, font=font(22))
-        bx = 16 + 28
-        for j, line in enumerate(wrapped[:2]):  # max 2 lines per headline
-            d.text((bx, y + j*26), line, fill=FG, font=font(22))
-        y += 58
+    if not clusters:
+        d.text((16, 60), "No news yet", fill=(200, 120, 120), font=font(28))
+        d.text((16, 96), "Waiting for sources…", fill=MUTED, font=font(20))
+        d.text((16, H-30), datetime.now().strftime("%b %d %I:%M %p"), fill=MUTED, font=font(18))
+        return atomic_save(img, "news.png")
+
+    # Layout constants to fit 5 cells comfortably
+    TOP_MARGIN = 6
+    CELL_H = 53
+    GAP = 2
+    L_MARGIN, R_MARGIN = 12, 12
+    PAD = 8
+    ICON_SZ = 24
+    BORDER = 1
+    HEAD_FONT = font(19)  # smaller, denser
+
+    y = 38 + TOP_MARGIN  # below header
+
+    for it in clusters:
+        src = (it.get("source") or "").lower()
+        title = (it.get("title") or "").strip()
+        count = int(it.get("count", 1))
+
+        style = get_source_style(src)
+        bg, bd = style["bg"], style["bd"]
+
+        # Cell rect
+        x0, x1 = L_MARGIN, W - R_MARGIN
+        y0, y1 = y, y + CELL_H
+
+        # Cell background + 1px border (rounded corners for a tiny lift)
+        try:
+            d.rounded_rectangle([x0, y0, x1, y1], radius=4, fill=bg, outline=bd, width=BORDER)
+        except Exception:
+            # older Pillow without rounded_rectangle
+            d.rectangle([x0, y0, x1, y1], fill=bg, outline=bd, width=BORDER)
+
+        # Icon on right
+        icon_x = x1 - PAD - ICON_SZ
+        icon_y = y0 + (CELL_H - ICON_SZ)//2
+        icon_name = style.get("icon")
+        icon_path = os.path.join(ICON_DIR, icon_name) if icon_name else None
+        if icon_path and os.path.exists(icon_path):
+            ico = load_icon(icon_path, ICON_SZ)
+            img.paste(ico, (icon_x, icon_y), ico)
+
+        # Consensus badge (×N) near the icon if >1
+        if count > 1:
+            badge_text = f"×{count}"
+            bt_w = d.textbbox((0,0), badge_text, font=font(14))[2]
+            bx0 = icon_x - 6 - bt_w - 6
+            by0 = y0 + 6
+            bx1 = bx0 + bt_w + 12
+            by1 = by0 + 18
+            # slightly darker strip from bg for the badge
+            badge_bg = tuple(max(0, c - 18) for c in bg)
+            try:
+                d.rounded_rectangle([bx0, by0, bx1, by1], radius=3, fill=badge_bg, outline=bd, width=1)
+            except Exception:
+                d.rectangle([bx0, by0, bx1, by1], fill=badge_bg, outline=bd, width=1)
+            d.text((bx0 + 6, by0 + 2), badge_text, fill=(20,20,20), font=font(14))
+
+        # Headline text (dark over light)
+        text_x = x0 + PAD
+        text_y = y0 + 8
+        max_text_right = icon_x - 8  # leave a bit of breathing room
+        max_w = max_text_right - text_x
+        lines = wrap_text_px(d, title, HEAD_FONT, max_w, max_lines=2)
+        for j, ln in enumerate(lines):
+            d.text((text_x, text_y + j*22), ln, fill=(20,20,20), font=HEAD_FONT)
+
+        y += CELL_H + GAP
         if y > H - 40:
             break
 
-    d.text((16, H-30), datetime.now().strftime("%b %d %I:%M %p"), fill=MUTED, font=font(18))
+    # Top-right timestamp just under the header
+    stamp = datetime.now().strftime("%b %d %I:%M %p")
+    sw = d.textbbox((0, 0), stamp, font=font(16))[2]
+    d.text((W - sw - 12, 10), stamp, fill=MUTED, font=font(16))
+
     return atomic_save(img, "news.png")
+
 
 # ---------- CLI ----------
 def main():
