@@ -14,6 +14,57 @@ FG = (235, 235, 235)
 ACCENT = (0, 200, 255)
 MUTED = (150, 150, 150)
 
+# ---- LCD quality: pre-dither to RGB565 (optional) ----
+DITHER_565 = True  # set False to disable
+
+_BAYER8 = [
+    [0,32,8,40,2,34,10,42],
+    [48,16,56,24,50,18,58,26],
+    [12,44,4,36,14,46,6,38],
+    [60,28,52,20,62,30,54,22],
+    [3,35,11,43,1,33,9,41],
+    [51,19,59,27,49,17,57,25],
+    [15,47,7,39,13,45,5,37],
+    [63,31,55,23,61,29,53,21],
+]
+
+def _quant_dither_8bit(val, levels, t):
+    """Ordered dither to N levels (levels=32 or 64). t in [-0.5,0.5)."""
+    # Map 0..255 → 0..levels-1 with a tiny threshold nudge
+    q = int(val * levels / 256 + t)
+    if q < 0: q = 0
+    if q >= levels: q = levels - 1
+    # Map back to 0..255
+    return int(round(q * 255 / (levels - 1)))
+
+def dither_to_rgb565(img_rgb):
+    """Return an RGB image whose pixels are quantized to RGB565 with Bayer 8×8."""
+    if img_rgb.mode != "RGB":
+        img_rgb = img_rgb.convert("RGB")
+    w, h = img_rgb.size
+    src = img_rgb.load()
+    out = Image.new("RGB", (w, h))
+    dst = out.load()
+    for y in range(h):
+        row = _BAYER8[y & 7]
+        for x in range(w):
+            t = (row[x & 7] / 64.0) - 0.5  # [-0.5, 0.5)
+            r, g, b = src[x, y]
+            r = _quant_dither_8bit(r, 32, t)  # 5 bits
+            g = _quant_dither_8bit(g, 64, t)  # 6 bits
+            b = _quant_dither_8bit(b, 32, t)  # 5 bits
+            dst[x, y] = (r, g, b)
+    return out
+
+def atomic_save(img: Image.Image, name: str):
+    path = os.path.join(OUT, name)
+    tmpp = path + ".tmp"
+    to_save = dither_to_rgb565(img) if DITHER_565 else img
+    to_save.save(tmpp, format="PNG", optimize=True)
+    os.replace(tmpp, path)
+    return path
+
+
 # ---------- News cell style (icons + tints) ----------
 ICON_DIR = os.path.expanduser("~/pidisplay/icons")
 
@@ -69,32 +120,9 @@ def _norm_key(title):
     import re
     return " ".join(re.sub(r"[^a-z0-9 ]+"," ", (title or "").lower()).split())
 
-def cluster_news(items, top_n=5):
-    groups = {}
-    for it in items:
-        k = _norm_key(it.get("title"))
-        if not k:
-            continue
-        groups.setdefault(k, []).append(it)
-    reps = []
-    for k, group in groups.items():
-        rep = max(group, key=lambda it: it.get("ts",""))
-        rep = dict(rep)
-        rep["count"] = len(group)
-        reps.append(rep)
-    reps.sort(key=lambda it: it.get("ts",""), reverse=True)
-    return reps[:top_n]
-
 def font(size: int):
     # DejaVuSans is present on Lite when fonts-dejavu-core is installed
     return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size)
-
-def atomic_save(img: Image.Image, name: str):
-    path = os.path.join(OUT, name)
-    tmpp = path + ".tmp"
-    img.save(tmpp, format="PNG", optimize=True)
-    os.replace(tmpp, path)
-    return path
 
 def load_json(path):
     try:
@@ -124,6 +152,8 @@ def draw_header(d, title: str):
 ICON_WEATHER_BASE = os.path.expanduser("~/pidisplay/icons/weather/base")
 ICON_WEATHER_LAYERS = os.path.expanduser("~/pidisplay/icons/weather/layers")
 ICON_WEATHER_TINY = os.path.join(ICON_WEATHER_LAYERS, "tiny_layers")
+HERO_SZ = 96  # try 84–100; bigger reads nicer on this panel
+
 
 _icon_cache_rgba = {}
 def load_rgba(path, size=None):
@@ -254,16 +284,16 @@ def render_weather():
     d.text((16, 60), main, fill=FG, font=font(56))
     d.text((16, 126), desc, fill=(180, 220, 255), font=font(26))
 
-    # --- Hero icon (≈65x65), stacked: base + sky + precip + thunder ---
+    # --- Hero icon (HERO_SZ, HERO_SZ), stacked: base + sky + precip + thunder ---
     base_name = "sun.png" if is_day == 1 else "moon_full.png"  # v1: simple day/night
-    base_im = load_rgba(os.path.join(ICON_WEATHER_BASE, base_name), size=(65, 65))
+    base_im = load_rgba(os.path.join(ICON_WEATHER_BASE, base_name), size=(HERO_SZ, HERO_SZ))
 
     sky_name, precip_name, thunder_name = wc_to_layers(int(wc) if wc is not None else -1)
-    sky_im     = load_rgba(os.path.join(ICON_WEATHER_LAYERS, sky_name), size=(65, 65)) if sky_name else None
-    precip_im  = load_rgba(os.path.join(ICON_WEATHER_LAYERS, precip_name), size=(65, 65)) if precip_name else None
-    thunder_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, thunder_name), size=(65, 65)) if thunder_name else None
+    sky_im     = load_rgba(os.path.join(ICON_WEATHER_LAYERS, sky_name), size=(HERO_SZ, HERO_SZ)) if sky_name else None
+    precip_im  = load_rgba(os.path.join(ICON_WEATHER_LAYERS, precip_name), size=(HERO_SZ, HERO_SZ)) if precip_name else None
+    thunder_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, thunder_name), size=(HERO_SZ, HERO_SZ)) if thunder_name else None
 
-    icon_x, icon_y = 200, 56
+    icon_x, icon_y = 190, 56
     for layer in (base_im, sky_im, precip_im, thunder_im):
         if layer is not None:
             img.paste(layer, (icon_x, icon_y), layer)

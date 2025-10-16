@@ -15,116 +15,145 @@
 * [x] **Card concept validated**
   Settled on render-to-PNG approach instead of Pygame; verified touch display compatibility and limitations.
 
+* [x] **News pipeline + clustered UI**
+  Per-source fetchers merge into `state/news.json`, clustered duplicates, source tints, and icons.
+
+* [x] **Clock card**
+  Minimal time/date card; integrates in slideshow rotation.
+
+* [x] **Weather: Fahrenheit conversion**
+  Open-Meteo requests in °F end-to-end; render shows °F.
+
+* [x] **Weather: layered hero icons**
+  Sun/moon base + condition layers (clouds/precip/thunder).
+
+* [x] **Weather: hourly condition badges**
+  20×20 tiny icons in the “Coming Up” strip (clear = no badge).
+
+* [x] **LCD fidelity: ordered dithering to RGB565**
+  Pre-dither before PNG save for smoother gradients on 16-bpp SPI panel.
+
+* [x] **Icon caches split**
+  Separate caches for news/source icons vs weather RGBA layers.
+
 ---
 
 ## 🔧 In Progress / Upcoming
 
-1. [ ] **Renderer daemon split**
-   Continuous process managing rotation, touch, and on-demand repaints. Updaters remain decoupled via JSON data files.
+* **Renderer daemon split**
+  Continuous process managing rotation, touch, and on-demand repaints. Updaters remain decoupled via JSON data files.
 
-2. [ ] **Config system + live reload**
-   Introduce `config.yaml` for card order, sources, colors, refresh intervals, and toggles. Implement lightweight file-watch to reload on change.
+* **Config system + live reload**
+  Introduce `config.yaml` for card order, sources, colors, refresh intervals, and toggles. Implement lightweight file-watch to reload on change.
 
-3. [ ] **Input framework**
-   Standardize touch zones: left/right navigation, long-press to pause, two-finger tap for menu. Produce unified event objects.
+* **Input framework**
+  Standardize touch zones: left/right navigation, long-press to pause, two-finger tap for menu. Produce unified event objects.
 
-4. [ ] **Menu overlay system**
-   Simple scrollable overlay to toggle cards, choose sources, colors, and manage lists (e.g., stock tickers). Persist to config.
+* **Menu overlay system**
+  Simple scrollable overlay to toggle cards, choose sources, colors, and manage lists (e.g., stock tickers). Persist to config.
 
-5. [ ] **Card plugin API**
-   Standard class interface:
-   `on_show()`, `on_hide()`, `handle_touch(evt)`, `update(dt)`, and `render(draw)`.
-   Register cards in a `cards/registry.py`.
+* **Card plugin API**
+  Standard class interface:
+  `on_show()`, `on_hide()`, `handle_touch(evt)`, `update(dt)`, and `render(draw)`.
+  Register cards in a `cards/registry.py`.
 
-6. [ ] **Dirty rectangle blitter**
-   Redraw only changed regions of the framebuffer. Maintain cached backgrounds and track dirty rects per frame.
+* **Dirty rectangle blitter**
+  Redraw only changed regions of the framebuffer. Maintain cached backgrounds and track dirty rects per frame.
 
-7. [ ] **Footer live clock (1 Hz)**
-   Always-on footer clock with per-second updates. Redraws a small rect to simulate a “live” clock without re-rendering the full frame.
+* **Footer live clock (1 Hz)**
+  Always-on footer clock with per-second updates. Redraws a small rect to simulate a “live” clock without re-rendering the full frame.
 
-8. [ ] **“Fake live” clock projection**
-   Extend the above so any card can host a running clock overlay (e.g., top-right). Updates 1 Hz, independent of card refresh.
+* **“Fake live” clock projection**
+  Extend the above so any card can host a running clock overlay (e.g., top-right). Updates 1 Hz, independent of card refresh.
 
-9. [ ] **Updaters refactor**
-   Isolate each data feed into `updaters/` scripts writing JSON to `data/`.
-   Add retry logic and rate limiting.
-   Start with news, weather, crypto.
+* **Updaters refactor**
+  Isolate each data feed into `updaters/` scripts writing JSON to `data/`.
+  Add retry logic and rate limiting.
+  Start with news, weather, crypto.
 
-10. [ ] **News card scroll upgrade**
-    Scrollable list of headlines with tap-to-expand preview. Supports per-source toggling from menu.
+* **News card scroll upgrade**
+  Scrollable list of headlines with tap-to-expand preview. Supports per-source toggling from menu.
 
-11. [ ] **Calendar integration (OAuth Device Flow)**
-    Implement secure Google Calendar read-only access using device flow. Store tokens under `~/.config/pidisplay/google/` with strict perms.
+* **Calendar integration (OAuth Device Flow)**
+  Implement secure Google Calendar read-only access using device flow. Store tokens under `~/.config/pidisplay/google/` with strict perms.
 
-12. [ ] **Calendar card**
-    Displays upcoming events grouped by day. Tap for details. Respects 12/24 h time.
+* **Calendar card**
+  Displays upcoming events grouped by day. Tap for details. Respects 12/24 h time.
 
-13. [ ] **Markets backend (stocks + crypto)**
-    Unify stock and crypto polling into one updater writing `data/markets.json`.
-    Fetch OHLCV for tracked symbols. Cache results efficiently.
+* **Markets backend (stocks + crypto)**
+  Unify stock and crypto polling into one updater writing `data/markets.json`.
+  Fetch OHLCV for tracked symbols. Cache results efficiently.
 
-14. [ ] **Markets overview cards**
+* **Markets overview cards**
+  - **Crypto list card:** scrollable card showing tracked coins with price + change.
+  - **Stock list card:** same idea for stock tickers.
+    Menu allows toggling which tickers appear in each list.
 
-    * **Crypto list card:** scrollable card showing tracked coins with price + change.
-    * **Stock list card:** same idea for stock tickers.
-      Menu allows toggling which tickers appear in each list.
+* **Feature cards per ticker**
+  Individual cards for specific tickers (BTC, ETH, AAPL, etc.) showing detailed price, chart, and 24 h change.
+  Enabled through menu toggles.
 
-15. [ ] **Feature cards per ticker**
-    Individual cards for specific tickers (BTC, ETH, AAPL, etc.) showing detailed price, chart, and 24 h change.
-    Enabled through menu toggles.
+* **Themes and color presets**
+  Create `themes/default.yaml`. Menu allows per-category color selection (weather, crypto, stocks, news).
 
-16. [ ] **Themes and color presets**
-    Create `themes/default.yaml`. Menu allows per-category color selection (weather, crypto, stocks, news).
+* **Logging and system health overlay**
+  Add rotating logs, simple CPU/temp/RAM stats, Wi-Fi signal, and last updater timestamps.
 
-17. [ ] **Logging and system health overlay**
-    Add rotating logs, simple CPU/temp/RAM stats, Wi-Fi signal, and last updater timestamps.
+* **Documentation pass 1**
+  Write `develop.md` and `config-reference.md` detailing architecture, APIs, directories, and how to add new cards.
 
-18. [ ] **Documentation pass 1**
-    Write `develop.md` and `config-reference.md` detailing architecture, APIs, directories, and how to add new cards.
+* **Weather polish: sunrise/sunset line**
+  Right-aligned “Sunset …” / “Sunrise …” text, switches based on current time.
+
+* **Weather polish: moon phase base**
+  Select from eight moon sprites (Open-Meteo moon phase or alternate source).
+
+* **Weather polish: optional day/night tint**
+  Subtle background tint before sunset; back to black after.
 
 ---
 
 ## 🚀 Planned After Core Stabilization
 
-19. [ ] **Sports card**
-    Scrollable scores or headlines by league. Menu toggles which leagues are shown.
+* **Sports card**
+  Scrollable scores or headlines by league. Menu toggles which leagues are shown.
 
-20. [ ] **Now Playing card**
-    Optional Spotify Connect or MPD integration; show song, artist, album art.
+* **Now Playing card**
+  Optional Spotify Connect or MPD integration; show song, artist, album art.
 
-21. [ ] **System stats card**
-    Local system info: CPU load, memory, disk, temp, uptime, IP.
+* **System stats card**
+  Local system info: CPU load, memory, disk, temp, uptime, IP.
 
-22. [ ] **Mini games (Snake first)**
-    Pillow-rendered, low-FPS games as optional cards. Proof of concept for dirty-rect performance.
+* **Mini games (Snake first)**
+  Pillow-rendered, low-FPS games as optional cards. Proof of concept for dirty-rect performance.
 
-23. [ ] **C++ fb1 blitter module**
-    Optional native module for RGB→RGB565 conversion and fast blits. Python calls it via ctypes or CFFI.
-    Drop-in, preserving Python API.
+* **C++ fb1 blitter module**
+  Optional native module for RGB→RGB565 conversion and fast blits. Python calls it via ctypes or CFFI.
+  Drop-in, preserving Python API.
 
-24. [ ] **Power + watchdog services**
-    Simple watchdog to restart renderer if unresponsive. Optionally dim screen on idle or scheduled hours.
+* **Power + watchdog services**
+  Simple watchdog to restart renderer if unresponsive. Optionally dim screen on idle or scheduled hours.
 
-25. [ ] **Test harness**
-    Headless mode rendering cards to PNG for development screenshots and CI tests.
+* **Test harness**
+  Headless mode rendering cards to PNG for development screenshots and CI tests.
 
 ---
 
 ## 💭 Maybe Someday
 
-* [ ] **Full C++ renderer path**
+* **Full C++ renderer path**
   Move render loop and fb writes fully native if Python becomes the bottleneck.
 
-* [ ] **Animated transitions**
+* **Animated transitions**
   Slide or fade between cards using cached frame diffs.
 
-* [ ] **Transit / commute ETA card**
+* **Transit / commute ETA card**
   Uses location data and free APIs to show next departures or drive times.
 
-* [ ] **Asteroids-Lite game**
+* **Asteroids-Lite game**
   Low-FPS pre-baked sprite version as a fun demo.
 
-* [ ] **Remote config web UI**
+* **Remote config web UI**
   Lightweight Flask or FastAPI service to modify `config.yaml` from browser.
 
 ---
@@ -135,4 +164,3 @@
 * The markets/crypto system unification ensures shared code for polling, caching, and rendering.
 * Clock projection features are now separate milestones because they touch multiple render paths.
 * Games, sports, and extra integrations live at the end to keep the base system tight first.
-
