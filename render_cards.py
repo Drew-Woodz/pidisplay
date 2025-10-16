@@ -120,7 +120,74 @@ def draw_header(d, title: str):
     d.rectangle([0, 0, W, 38], fill=(20, 20, 20))
     d.text((12, 8), title, fill=FG, font=font(22))
 
+# --- Weather icon helpers ---
+ICON_WEATHER_BASE = os.path.expanduser("~/pidisplay/icons/weather/base")
+ICON_WEATHER_LAYERS = os.path.expanduser("~/pidisplay/icons/weather/layers")
+ICON_WEATHER_TINY = os.path.join(ICON_WEATHER_LAYERS, "tiny_layers")
+
+_icon_cache_rgba = {}
+def load_rgba(path, size=None):
+    key = (path, size)
+    if key in _icon_cache_rgba:
+        return _icon_cache_rgba[key]
+    try:
+        im = Image.open(path).convert("RGBA")
+        if size:
+            im = im.resize(size, Image.LANCZOS)
+    except Exception:
+        im = None
+    _icon_cache_rgba[key] = im
+    return im
+
+
+def wc_to_layers(code: int):
+    """Return (sky_layer, precip_layer, thunder_layer) filenames (no paths)."""
+    sky = precip = thunder = None
+    if code in (1,):
+        sky = "few_clouds.png"
+    elif code in (2,):
+        sky = "scattered_clouds.png"
+    elif code in (3,):
+        sky = "overcast.png"
+    elif code in (45, 48):
+        sky = "fog.png"
+
+    if code in (51, 53, 55):
+        precip = "drizzle.png"
+    elif code in (61, 63, 65, 80, 81, 82):
+        precip = "rain.png"
+        # 80-82 are showers; we already show a sky layer if you want (scattered_clouds), but precip dominates.
+    elif code in (71, 73, 75):
+        precip = "snow.png"
+
+    if code in (95, 96, 99):
+        thunder = "thunder.png"
+
+    return sky, precip, thunder
+
+def wc_to_tiny_layer(code: int):
+    """Return 20x20 tiny layer filename (no sun/moon), or None."""
+    if code in (1,):
+        return "tiny_few_clouds.png"
+    if code in (2,):
+        return "tiny_scattered_clouds.png"
+    if code in (3,):
+        return "tiny_overcast.png"
+    if code in (45, 48):
+        return "tiny_fog.png"
+    if code in (51, 53, 55):
+        return "tiny_drizzle.png"
+    if code in (61, 63, 65, 80, 81, 82):
+        return "tiny_rain.png"
+    if code in (71, 73, 75):
+        return "tiny_snow.png"
+    if code in (95, 96, 99):
+        return "tiny_thunder.png"
+    return None
+
+
 # ---------- Renderers ----------
+# ---------- BTC 
 def render_btc():
     data = load_json(os.path.expanduser("~/pidisplay/state/btc.json"))
     img = Image.new("RGB", (W, H), BG)
@@ -152,6 +219,8 @@ def render_btc():
     d.text((16, H-30), f"{footer} {datetime.now().strftime('%b %d %I:%M %p')}", fill=MUTED, font=font(18))
     return atomic_save(img, "btc.png")
 
+# ----------------- # Weather Card # state/weather.json # ---------------------
+
 # Weather code mappings (Open-Meteo)
 WCMAP = {
     0:"Clear",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",
@@ -175,33 +244,45 @@ def render_weather():
         return atomic_save(img, "weather.png")
 
     noww = data["now"]
-    temp = noww.get("temp_f")   # using Fahrenheit
+    temp = noww.get("temp_f")
     wc   = noww.get("weathercode")
     desc = WCMAP.get(int(wc) if wc is not None else -1, "—")
+    is_day = int(noww.get("is_day") or 0)
 
     # Big temp + description
-    main = f"{int(round(temp))}°F" if temp is not None else "—°"
+    main = f"{int(round(temp))}°F" if isinstance(temp, (int, float)) else "—°"
     d.text((16, 60), main, fill=FG, font=font(56))
     d.text((16, 126), desc, fill=(180, 220, 255), font=font(26))
 
+    # --- Hero icon (≈65x65), stacked: base + sky + precip + thunder ---
+    base_name = "sun.png" if is_day == 1 else "moon_full.png"  # v1: simple day/night
+    base_im = load_rgba(os.path.join(ICON_WEATHER_BASE, base_name), size=(65, 65))
+
+    sky_name, precip_name, thunder_name = wc_to_layers(int(wc) if wc is not None else -1)
+    sky_im     = load_rgba(os.path.join(ICON_WEATHER_LAYERS, sky_name), size=(65, 65)) if sky_name else None
+    precip_im  = load_rgba(os.path.join(ICON_WEATHER_LAYERS, precip_name), size=(65, 65)) if precip_name else None
+    thunder_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, thunder_name), size=(65, 65)) if thunder_name else None
+
+    icon_x, icon_y = 200, 56
+    for layer in (base_im, sky_im, precip_im, thunder_im):
+        if layer is not None:
+            img.paste(layer, (icon_x, icon_y), layer)
+
     # Mini 6-hour strip
     from datetime import datetime, timedelta
-
     y = 180
     d.text((16, y-24), "Coming Up", fill=(180, 180, 180), font=font(18))
 
     hourly_list = (data.get("hourly", []) or [])
-    # Build a quick lookup by ISO hour key, e.g. "2025-10-13T18:00"
+    # quick lookup by ISO hour key, e.g. "2025-10-13T18:00"
     hour_map = {h.get("time"): h for h in hourly_list}
 
     now = datetime.now()
     start = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
 
-    labels = []
-    keys = []
+    labels, keys = [], []
     t = start
     for _ in range(6):
-        # Label like "6 PM" (fallback for systems without %-I)
         try:
             lbl = t.strftime("%-I %p")
         except ValueError:
@@ -212,12 +293,27 @@ def render_weather():
 
     x = 16
     for lbl, key in zip(labels, keys):
-        h = hour_map.get(key, {})
+        h  = hour_map.get(key, {}) or {}
         tf = h.get("temp_f")
         pp = h.get("pop")
+        hwc = h.get("weathercode")
 
+        # time label
         d.text((x, y), lbl, fill=MUTED, font=font(16))
-        d.text((x, y+18), f"{int(round(tf))}°" if isinstance(tf, (int, float)) else "—°", fill=FG, font=font(20))
+
+        # tiny condition badge (20x20) between label and temp
+        tiny_name = wc_to_tiny_layer(int(hwc) if hwc is not None else -1)
+        tiny_im = load_rgba(os.path.join(ICON_WEATHER_TINY, tiny_name), size=(20, 20)) if tiny_name else None
+
+        tx = x  # temp x starts at label x; shift if we draw an icon
+        if tiny_im is not None:
+            img.paste(tiny_im, (x, y+1), tiny_im)
+            tx = x + 24  # make room for the tiny icon
+
+        # temperature
+        d.text((tx, y+18), f"{int(round(tf))}°" if isinstance(tf, (int, float)) else "—°", fill=FG, font=font(20))
+
+        # precip %
         if isinstance(pp, (int, float)):
             d.text((x, y+38), f"{int(pp)}%", fill=(140, 200, 255), font=font(14))
         else:
@@ -227,12 +323,12 @@ def render_weather():
         if x > W - 64:
             break
 
-
     # Footer time: STALE if older than 30 min
     stale = is_stale(data.get("updated", ""), max_age_sec=1800)
     footer = "STALE" if stale else "Updated"
     d.text((16, H-30), f"{footer} {datetime.now().strftime('%b %d %I:%M %p')}", fill=MUTED, font=font(18))
     return atomic_save(img, "weather.png")
+
 
 # ---------- News: clustering from state/news.json ----------
 
