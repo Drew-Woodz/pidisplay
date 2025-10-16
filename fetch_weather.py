@@ -45,6 +45,7 @@ def main():
                 "temp_f": now.get("temperature"),
                 "windspeed": now.get("windspeed"),
                 "weathercode": now.get("weathercode"),
+                "is_day": now.get("is_day"),
                 "ts": now.get("time")
             },
             "hourly": [],  # next ~6 items for the card
