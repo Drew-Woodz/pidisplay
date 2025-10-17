@@ -669,6 +669,62 @@ icons/weather/layers/tiny_layers/
 * **Icon art iterations**: we can add 2–3 “position” variants (pre-sunrise/sunset) for a slow parallax-like progression.
 * **Per-panel gamma**: optional LUT pass if we still want to fine-tune contrast.
 
+
+---
+
+## (Astronomy: moon phase + sunrise/sunset, caching)
+
+**Summary**
+
+* Swapped moon-phase source to **WeatherAPI** `astronomy.json` (env: `WEATHERAPI_KEY`).
+* Added a **1-day cache** at `~/pidisplay/state/astro_cache.json` keyed by `YYYY-MM-DD:lat,lon` so we only call once per day.
+* Weather fetch now writes astronomy fields into `state/weather.json`:
+
+  * `astronomy.sunrise`, `astronomy.sunset`, `astronomy.sunrise_next`
+  * `astronomy.moon_phase` (0..1 fraction) and `astronomy.moon_phase_name` (e.g., “Waning Crescent”)
+* Renderer updates:
+
+  * Right-aligned header blurb shows **“Sunset …”** when day, **“Sunrise …”** when night.
+  * Night hero base picks the **nearest moon phase icon** (round-to-nearest / “+50% rule”).
+* Kept earlier LCD fidelity work: **RGB565 Bayer dithering** on save; **HERO_SZ=96** hero art; split icon caches (`_icon_cache` vs `_icon_cache_rgba`).
+
+**Files touched**
+
+* `fetch_weather.py` — new WeatherAPI call with daily cache; Open-Meteo still used for current/hourly + sunrise/sunset.
+* `render_cards.py` — header blurb, moon-icon selection via `pick_moon_icon()`, tiny hourly badges.
+
+**Ops / Secrets**
+
+* Add `WEATHERAPI_KEY` in your shell profile (and in `systemd` if you run fetch via a timer):
+
+  ```bash
+  echo 'export WEATHERAPI_KEY="YOUR_REAL_KEY_HERE"' >> ~/.bashrc
+  source ~/.bashrc
+  ```
+
+  For systemd, add to the service (or an EnvironmentFile):
+
+  ```
+  Environment=WEATHERAPI_KEY=YOUR_REAL_KEY_HERE
+  ```
+* Ensure secrets aren’t committed. `.gitignore` already ignores rendered assets; also ignore any `.env` you might add.
+
+**Validation**
+
+```bash
+# Re-fetch and render
+python ~/pidisplay/fetch_weather.py
+python ~/pidisplay/render_cards.py --only weather
+
+# Inspect astronomy block
+jq .astronomy ~/pidisplay/state/weather.json
+```
+
+**Notes**
+
+* If WeatherAPI is unreachable, we still render with last known moon cache (or omit the phase); sunrise/sunset remain from Open-Meteo.
+* If you move far enough that lat/lon rounding (3 dp) changes, the cache key changes and we fetch anew.
+
 ---
 
 
