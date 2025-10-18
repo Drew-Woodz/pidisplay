@@ -542,3 +542,189 @@ News headlines now flow reliably from multiple sources into a single, clear card
 
 ---
 
+# Development Log — Entry 4 (Weather icons, RGB565 dithering, hourly badges)
+
+## Executive summary
+
+* Added a **layered weather icon system** (sun/moon base + condition layers) for the hero icon on the weather card.
+* Introduced **tiny 20×20 condition badges** in the hourly strip (no sun/moon there to avoid clutter).
+* Enriched weather fetch with **`is_day`** and wired **day/night base selection**.
+* Improved LCD fidelity with **ordered dithering to RGB565** prior to PNG save (better gradients on the 16-bpp SPI panel).
+* Bumped hero art to a tunable size (**`HERO_SZ`**, currently 96) for better legibility.
+* Split icon caches to avoid collisions (**`_icon_cache`** vs **`_icon_cache_rgba`**).
+* Cleaned up minor code drift (duplicate functions) and verified render loop.
+
+---
+
+## What changed
+
+### 1) Layered weather hero icon (65–100 px)
+
+**Where:** `render_cards.py → render_weather()`
+
+**How it works**
+
+* **Base**: `sun.png` if `is_day == 1`, otherwise `moon_full.png` (moon phases coming later).
+* **Layers** (stacked in order):
+  *Sky obstruction* → *precipitation* → *thunder*
+  chosen from `weather/layers/` via `wc_to_layers(weathercode)`.
+* Position near the big temp; size governed by `HERO_SZ` (we set 96).
+
+**Assets (committed)**
+
+```
+icons/weather/base/
+  sun.png
+  moon_{new,first_quarter,third_quarter,full,waning_crescent,waning_gibbous,
+        waxing_crescent,waxing_gibbous}.png
+
+icons/weather/layers/
+  few_clouds.png, scattered_clouds.png, overcast.png, fog.png
+  drizzle.png, rain.png, snow.png, thunder.png
+```
+
+### 2) Hourly mini condition badges (20×20)
+
+**Where:** `render_cards.py → render_weather()` within the hourly loop
+
+* New **tiny layers** placed between the time label and temperature:
+
+```
+icons/weather/layers/tiny_layers/
+  tiny_few_clouds.png, tiny_scattered_clouds.png, tiny_overcast.png, tiny_fog.png
+  tiny_drizzle.png, tiny_rain.png, tiny_snow.png, tiny_thunder.png
+```
+
+* Mapping via `wc_to_tiny_layer(weathercode)`.
+* If the hour is “clear” (code 0), we **omit** the tiny icon (keeps the row clean).
+
+### 3) Data enrichment: `is_day`
+
+**Where:** `fetch_weather.py`
+
+* Request unchanged; we now capture `current_weather.is_day` and store it under `now.is_day`.
+* Renderer uses this to select **sun vs moon** for the hero base.
+
+### 4) Pre-dither to RGB565 (LCD quality)
+
+**Where:** `render_cards.py`
+
+* Added an ordered **Bayer 8×8** dither step that quantizes to **RGB565** before saving PNGs.
+* Controlled by `DITHER_565 = True`.
+* Result: noticeably smoother gradients and less posterization on the 16-bpp ILI9486 panel.
+
+### 5) Hero size & layout polish
+
+* Introduced `HERO_SZ` (currently **96**; try 88–100 to taste).
+* Slight icon placement nudge so the glyph sits nicely by the temp.
+
+### 6) Caching & small refactors
+
+* **Separate caches**: `_icon_cache` (news/source icons) and `_icon_cache_rgba` (weather PNGs).
+* Removed duplicate implementations:
+
+  * Keep the **dithered `atomic_save()`** (delete the later non-dithered one).
+  * Keep the **Jaccard-based `cluster_news()`** (delete the older grouping helper).
+
+---
+
+## Validation
+
+1. **Weather fetch**
+
+   ```
+   /home/pi/venv/bin/python ~/pidisplay/fetch_weather.py
+   jq . ~/pidisplay/state/weather.json | head
+   ```
+
+   Ensure `now.is_day` and `hourly[].weathercode` present.
+
+2. **Render weather**
+
+   ```
+   /home/pi/venv/bin/python ~/pidisplay/render_cards.py --only weather
+   fbi -T 1 -d /dev/fb1 -a ~/pidisplay/images/weather.png
+   ```
+
+3. **Quality check**
+
+   * Inspect hero edges and gradients on the panel (moon/sun should look less “crunchy”).
+   * Verify tiny icons appear only when conditions warrant (e.g., rain hour shows a drop).
+
+---
+
+## Notes & decisions
+
+* We **do not** show base icons (sun/moon) in the hourly strip to prevent clutter.
+* File structure is now stable; icons are **committed** to the repo (we exempt only rendered assets).
+* The dithering is image-wide; no change is needed in `fbi` flags.
+
+---
+
+## Known limitations / next ideas
+
+* **Moon phase base**: use Open-Meteo’s moon phase or another source to pick among the eight moon sprites.
+* **Sunrise/Sunset line**: add right-aligned “Sunset 6:57 PM” / “Sunrise 5:54 AM” and flip based on current time.
+* **Day/Night tint**: optional subtle background tint before sunset; back to black after.
+* **Icon art iterations**: we can add 2–3 “position” variants (pre-sunrise/sunset) for a slow parallax-like progression.
+* **Per-panel gamma**: optional LUT pass if we still want to fine-tune contrast.
+
+
+---
+
+## (Astronomy: moon phase + sunrise/sunset, caching)
+
+**Summary**
+
+* Swapped moon-phase source to **WeatherAPI** `astronomy.json` (env: `WEATHERAPI_KEY`).
+* Added a **1-day cache** at `~/pidisplay/state/astro_cache.json` keyed by `YYYY-MM-DD:lat,lon` so we only call once per day.
+* Weather fetch now writes astronomy fields into `state/weather.json`:
+
+  * `astronomy.sunrise`, `astronomy.sunset`, `astronomy.sunrise_next`
+  * `astronomy.moon_phase` (0..1 fraction) and `astronomy.moon_phase_name` (e.g., “Waning Crescent”)
+* Renderer updates:
+
+  * Right-aligned header blurb shows **“Sunset …”** when day, **“Sunrise …”** when night.
+  * Night hero base picks the **nearest moon phase icon** (round-to-nearest / “+50% rule”).
+* Kept earlier LCD fidelity work: **RGB565 Bayer dithering** on save; **HERO_SZ=96** hero art; split icon caches (`_icon_cache` vs `_icon_cache_rgba`).
+
+**Files touched**
+
+* `fetch_weather.py` — new WeatherAPI call with daily cache; Open-Meteo still used for current/hourly + sunrise/sunset.
+* `render_cards.py` — header blurb, moon-icon selection via `pick_moon_icon()`, tiny hourly badges.
+
+**Ops / Secrets**
+
+* Add `WEATHERAPI_KEY` in your shell profile (and in `systemd` if you run fetch via a timer):
+
+  ```bash
+  echo 'export WEATHERAPI_KEY="YOUR_REAL_KEY_HERE"' >> ~/.bashrc
+  source ~/.bashrc
+  ```
+
+  For systemd, add to the service (or an EnvironmentFile):
+
+  ```
+  Environment=WEATHERAPI_KEY=YOUR_REAL_KEY_HERE
+  ```
+* Ensure secrets aren’t committed. `.gitignore` already ignores rendered assets; also ignore any `.env` you might add.
+
+**Validation**
+
+```bash
+# Re-fetch and render
+python ~/pidisplay/fetch_weather.py
+python ~/pidisplay/render_cards.py --only weather
+
+# Inspect astronomy block
+jq .astronomy ~/pidisplay/state/weather.json
+```
+
+**Notes**
+
+* If WeatherAPI is unreachable, we still render with last known moon cache (or omit the phase); sunrise/sunset remain from Open-Meteo.
+* If you move far enough that lat/lon rounding (3 dp) changes, the cache key changes and we fetch anew.
+
+---
+
+

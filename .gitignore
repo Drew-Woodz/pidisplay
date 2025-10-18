@@ -2,7 +2,10 @@ cat > ~/pidisplay/.gitignore <<'EOF'
 # Python
 __pycache__/
 *.pyc
-venv/
+.env
+*.env
+~/.config/pidisplay/*
+
 
 # Rendered & temp assets
 images/*.png
