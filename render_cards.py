@@ -297,6 +297,17 @@ MOON_ICONS = [
     "moon_waning_crescent.png",
 ]
 
+# --- Hourly strip layout knobs ---
+HOURLY_COL_W = 72       # column width
+HOURLY_Y     = 180      # top of the hourly block ("Coming Up" sits at Y-24)
+TIME_DY      = 0        # y-offset for the time label relative to HOURLY_Y
+TEMP_DY      = 18       # y-offset for the temperature
+POP_DY       = 38       # y-offset for precip %
+ICON_SZ_TINY = 20       # 20x20 tiny weather icon
+ICON_DX      = 36       # icon x offset from the column anchor (x)
+ICON_DY      = 16       # icon y offset from HOURLY_Y (place near the temp line)
+
+
 def render_weather():
     data = load_json(os.path.expanduser("~/pidisplay/state/weather.json"))
     img = Image.new("RGB", (W, H), BG)
@@ -383,36 +394,45 @@ def render_weather():
         hwc = h.get("weathercode")
 
         # time label
-        d.text((x, y), lbl, fill=MUTED, font=font(16))
+    x = 16
+    for lbl, key in zip(labels, keys):
+        h   = hour_map.get(key, {}) or {}
+        tf  = h.get("temp_f")
+        pp  = h.get("pop")
+        hwc = h.get("weathercode")
 
-        # measure label width to place the tiny icon AFTER the label
-        time_w = d.textbbox((0, 0), lbl, font=font(16))[2]
-        ix = x + time_w + 6  # icon x (6px gap after label)
+        # 1) fixed anchors (left-aligned columns)
+        time_xy = (x, HOURLY_Y + TIME_DY)
+        temp_xy = (x, HOURLY_Y + TEMP_DY)
+        pop_xy  = (x, HOURLY_Y + POP_DY)
 
-        # tiny condition badge
+        # time (never moves)
+        d.text(time_xy, lbl, fill=MUTED, font=font(16))
+
+        # temperature (never moves)
+        temp_txt = f"{int(round(tf))}°" if isinstance(tf, (int, float)) else "—°"
+        d.text(temp_xy, temp_txt, fill=FG, font=font(20))
+
+        # tiny icon (overlay; does NOT change text positions)
         tiny_name = wc_to_tiny_layer(int(hwc) if hwc is not None else -1)
-        tiny_im = load_rgba(os.path.join(ICON_WEATHER_TINY, tiny_name), size=(20, 20)) if tiny_name else None
-
-        # temperature x: after the icon if present, otherwise after the label
-        tx = ix + (22 if tiny_im is not None else 0)
-
-        if tiny_im is not None:
-            # slight vertical nudge so it sits visually centered next to the text
-            img.paste(tiny_im, (ix, y-2), tiny_im)
-
-        # temperature
-        d.text((tx, y+18), f"{int(round(tf))}°" if isinstance(tf, (int, float)) else "—°", fill=FG, font=font(20))
+        if tiny_name:
+            tiny_im = load_rgba(os.path.join(ICON_WEATHER_TINY, tiny_name), size=(ICON_SZ_TINY, ICON_SZ_TINY))
+            if tiny_im is not None:
+                ix = x + ICON_DX
+                iy = HOURLY_Y + ICON_DY
+                img.paste(tiny_im, (ix, iy), tiny_im)
 
         # precip %
         if isinstance(pp, (int, float)):
-            d.text((x, y+38), f"{int(pp)}%", fill=(140, 200, 255), font=font(14))
+            d.text(pop_xy, f"{int(pp)}%", fill=(140, 200, 255), font=font(14))
         else:
-            d.text((x, y+38), "—", fill=(100, 120, 140), font=font(14))
+            d.text(pop_xy, "—", fill=(100, 120, 140), font=font(14))
 
-
-        x += 72
+        # advance to next column
+        x += HOURLY_COL_W
         if x > W - 64:
             break
+
 
     # Footer time: STALE if older than 30 min
     stale = is_stale(data.get("updated", ""), max_age_sec=1800)

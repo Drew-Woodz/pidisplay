@@ -2,6 +2,22 @@
 
 > Summarized highlights from the active development log (`develop.md`).
 
+## [v0.4.1] — 2025-10-19
+### Added
+- Astronomy integration: sunrise/sunset text blurbs and moon phase via WeatherAPI (daily cached)
+- Automatic selection of moon phase hero icon (+50% rule) based on current lunar position
+- Adjustable hourly strip layout with tunable `ICON_DX`, `ICON_DY`, and `TEMP_DY`
+- Independent clock-update timer restoration and boot persistence validation
+
+### Fixed
+- Hourly weather icon alignment (icons now overlay without shifting temperature columns)
+- Clock-update timer not re-enabling after power loss
+- Weather render crash on missing `tiny_im` variable
+
+### Improved
+- Visual consistency in hourly forecast: time, temperature, and precip columns re-aligned
+- System resilience after power loss (revalidated timers and ensured auto-start)
+
 ---
 
 ## [v0.4.0] — 2025-10-16
