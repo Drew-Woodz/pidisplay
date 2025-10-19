@@ -58,6 +58,11 @@ def main():
         "temperature_unit": "fahrenheit",
     }
 
+    # Load previous state so we can preserve moon_phase if the astronomy call fails
+    prev = load(OUT) or {}
+    prev_moon = ((prev.get("astronomy") or {}).get("moon_phase"))
+
+
     # --- 2) Astronomy (moon phase) — now with caching ---
     today = datetime.now().date()
     tomorrow = today + timedelta(days=1)
@@ -120,6 +125,11 @@ def main():
                     print(f"🌙 WeatherAPI moon phase: {moon_phase_name} ({moon_phase_fraction:.3f})")
             except Exception as e:
                 print("⚠️ WeatherAPI astronomy fetch failed:", e)
+
+    # ... after moon_phase = moon_list[0] if moon_list else None
+    if moon_phase is None and prev_moon is not None:
+        moon_phase = prev_moon
+
 
     try:
         # Forecast request (authoritative for sunrise/sunset and hourly)
