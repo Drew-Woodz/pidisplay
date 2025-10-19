@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# render_cards.py
 # Render BTC / News / Weather cards to fixed PNG filenames atomically.
 import os, io, math, time, textwrap, argparse, json
 from datetime import datetime
@@ -64,7 +65,6 @@ def atomic_save(img: Image.Image, name: str):
     os.replace(tmpp, path)
     return path
 
-
 # ---------- News cell style (icons + tints) ----------
 ICON_DIR = os.path.expanduser("~/pidisplay/icons")
 
@@ -113,8 +113,6 @@ def wrap_text_px(draw, text, font, max_width_px, max_lines=2):
         lines.append(cur)
     return lines
 
-
-
 # ---------- Helpers ----------
 def _norm_key(title):
     import re
@@ -154,7 +152,6 @@ ICON_WEATHER_LAYERS = os.path.expanduser("~/pidisplay/icons/weather/layers")
 ICON_WEATHER_TINY = os.path.join(ICON_WEATHER_LAYERS, "tiny_layers")
 HERO_SZ = 96  # try 84–100; bigger reads nicer on this panel
 
-
 _icon_cache_rgba = {}
 def load_rgba(path, size=None):
     key = (path, size)
@@ -168,7 +165,6 @@ def load_rgba(path, size=None):
         im = None
     _icon_cache_rgba[key] = im
     return im
-
 
 def wc_to_layers(code: int):
     """Return (sky_layer, precip_layer, thunder_layer) filenames (no paths)."""
@@ -247,8 +243,6 @@ def pick_moon_icon(phase):
     idx = int((p * 8.0) + 0.5) % 8
     return MOON_ICONS[idx]
 
-
-
 # ---------- Renderers ----------
 # ---------- BTC 
 def render_btc():
@@ -283,7 +277,6 @@ def render_btc():
     return atomic_save(img, "btc.png")
 
 # ----------------- # Weather Card # state/weather.json # ---------------------
-
 # Weather code mappings (Open-Meteo)
 WCMAP = {
     0:"Clear",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",
@@ -392,14 +385,20 @@ def render_weather():
         # time label
         d.text((x, y), lbl, fill=MUTED, font=font(16))
 
-        # tiny condition badge (20x20) between label and temp
+        # measure label width to place the tiny icon AFTER the label
+        time_w = d.textbbox((0, 0), lbl, font=font(16))[2]
+        ix = x + time_w + 6  # icon x (6px gap after label)
+
+        # tiny condition badge
         tiny_name = wc_to_tiny_layer(int(hwc) if hwc is not None else -1)
         tiny_im = load_rgba(os.path.join(ICON_WEATHER_TINY, tiny_name), size=(20, 20)) if tiny_name else None
 
-        tx = x  # temp x starts at label x; shift if we draw an icon
+        # temperature x: after the icon if present, otherwise after the label
+        tx = ix + (22 if tiny_im is not None else 0)
+
         if tiny_im is not None:
-            img.paste(tiny_im, (x, y+1), tiny_im)
-            tx = x + 24  # make room for the tiny icon
+            # slight vertical nudge so it sits visually centered next to the text
+            img.paste(tiny_im, (ix, y-2), tiny_im)
 
         # temperature
         d.text((tx, y+18), f"{int(round(tf))}°" if isinstance(tf, (int, float)) else "—°", fill=FG, font=font(20))
@@ -410,6 +409,7 @@ def render_weather():
         else:
             d.text((x, y+38), "—", fill=(100, 120, 140), font=font(14))
 
+
         x += 72
         if x > W - 64:
             break
@@ -419,7 +419,6 @@ def render_weather():
     footer = "STALE" if stale else "Updated"
     d.text((16, H-30), f"{footer} {datetime.now().strftime('%b %d %I:%M %p')}", fill=MUTED, font=font(18))
     return atomic_save(img, "weather.png")
-
 
 # ---------- News: clustering from state/news.json ----------
 
@@ -541,7 +540,6 @@ def render_news():
     d.text((W - sw - 12, 10), stamp, fill=MUTED, font=font(16))
 
     return atomic_save(img, "news.png")
-
 
 # ---------- CLI ----------
 def main():
