@@ -727,4 +727,39 @@ jq .astronomy ~/pidisplay/state/weather.json
 
 ---
 
+## Development Log — Entry 5 (Astronomy integration + clock resilience)
+
+### Summary
+
+* Integrated **WeatherAPI Astronomy** endpoint for accurate moon phase and sunrise/sunset times.
+* Added a **1-day persistent cache** (`state/astro_cache.json`) to avoid repeated API calls.
+* Weather card now displays a context-aware **Sunrise** or **Sunset** label depending on time of day.
+* Moon phase determines the **night hero base**; if ≥50% toward the next phase, it rounds forward.
+* Hourly weather icons reworked for proper alignment and independent overlay placement.
+* Fixed a post-reboot clock stall by re-enabling and verifying the `clock-update.timer` under systemd.
+
+### Technical highlights
+
+- **fetch_weather.py**
+  * Added WeatherAPI call with daily caching keyed by `YYYY-MM-DD:lat,lon`.
+  * Retained Open-Meteo for hourly data.
+  * New fields written to `state/weather.json`: `astronomy.sunrise`, `astronomy.sunset`, `astronomy.sunrise_next`, `astronomy.moon_phase`, and `astronomy.moon_phase_name`.
+
+- **render_cards.py**
+  * Introduced configurable layout constants for the hourly strip (`HOURLY_COL_W`, `ICON_DX`, `ICON_DY`, `TEMP_DY`, `POP_DY`).
+  * Tiny condition badges now render independently and no longer shift temperature alignment.
+  * Added logic to select the nearest moon sprite for night-time hero bases.
+
+- **Systemd verification**
+  * `clock-update.timer` re-enabled with `--now` to guarantee boot persistence.
+  * Verified all timers (`weather-update`, `btc-update`, `news-*`, `clock-update`) active with `systemctl list-timers`.
+
+### Result
+
+All weather and astronomy data now render correctly with accurate moon and sun states.  
+The hourly strip regained proper column alignment, and the system fully recovers time rendering after power loss.
+
+---
+
+
 

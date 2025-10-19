@@ -127,8 +127,8 @@ def main():
                 print("⚠️ WeatherAPI astronomy fetch failed:", e)
 
     # ... after moon_phase = moon_list[0] if moon_list else None
-    if moon_phase is None and prev_moon is not None:
-        moon_phase = prev_moon
+    if moon_phase_fraction is None and prev_moon is not None:
+        moon_phase_fraction = prev_moon
 
 
     try:
