@@ -2,6 +2,14 @@
 
 > Summarized highlights from the active development log (`develop.md`).
 
+## [2025-10-20] — Stability Restoration and Timer Validation
+- Reinstated `fbi` slideshow under user `pi` with TTY and capability fixes.
+- Added pre-display VT clear to prevent console text artifacts.
+- Validated 15 s `clock-update.timer` for continuous clock refresh.
+- Documented remaining minor flicker for future optimization (persistent `fbi` or direct framebuffer blit).
+
+---
+
 ## [v0.4.1] — 2025-10-19
 ### Added
 - Astronomy integration: sunrise/sunset text blurbs and moon phase via WeatherAPI (daily cached)
