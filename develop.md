@@ -761,5 +761,28 @@ The hourly strip regained proper column alignment, and the system fully recovers
 
 ---
 
+## Development Log — Entry 5 (Restoring Stable Viewer Loop)
+
+**Summary:**
+Re-established a stable `fbi`-based slideshow under user `pi` after privilege conversion introduced frame flicker and console noise. Confirmed clock card updates via a 15-second timer.
+
+**Details:**
+
+* **Root Cause:**  
+  Transitioning `pidisplay.service` from root → user `pi` restricted `fbi`’s direct VT control (`/dev/tty1` access), causing visible flicker and “ioctl VT_ACTIVATE” spam when launching `fbi` for each frame.
+
+* **Fixes Implemented:**  
+  - Restored the original *per-image `fbi` invocation* model documented in earlier development notes.  
+  - Re-added full TTY binding and `CAP_SYS_TTY_CONFIG` capability to restore VT activation.  
+  - Added `ExecStartPre` clear routine to remove residual boot text and hide cursor before slideshow start.  
+  - Verified `clock-update.timer` runs every 15 s and `clock.png` refreshes as expected.
+
+* **Outstanding Items:**  
+  - Minor frame flicker persists due to `fbi` restarts under non-root privileges.  
+  - Future evaluation: persistent single-instance `fbi` loop or direct `fb_show.py` blit path to eliminate refresh gap.  
+  - Confirm all services (news, weather, btc, clock) remain healthy post-boot.
+
+**Result:**  
+System operates normally on boot. Cards update in real time. Minimal flicker remains but all functions verified stable.
 
 
