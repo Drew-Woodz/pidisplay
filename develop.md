@@ -785,4 +785,5 @@ Re-established a stable `fbi`-based slideshow under user `pi` after privilege co
 **Result:**  
 System operates normally on boot. Cards update in real time. Minimal flicker remains but all functions verified stable.
 
+relevant source : https://raspberrypi.stackexchange.com/questions/24180/how-can-i-refresh-image-displayed-by-fbi-without-black-screen-transition
 
