@@ -1,0 +1,9 @@
+LANG=en_GB.UTF-8
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+HOME=/home/pi
+LOGNAME=pi
+USER=pi
+SHELL=/bin/bash
+INVOCATION_ID=73fe81fec12d45cd8790a5bb73f30f37
+TERM=xterm
+SYSTEMD_EXEC_PID=13244
