@@ -761,7 +761,7 @@ The hourly strip regained proper column alignment, and the system fully recovers
 
 ---
 
-## Development Log — Entry 5 (Restoring Stable Viewer Loop)
+## Development Log — Entry 6 (Restoring Stable Viewer Loop)
 
 **Summary:**
 Re-established a stable `fbi`-based slideshow under user `pi` after privilege conversion introduced frame flicker and console noise. Confirmed clock card updates via a 15-second timer.
@@ -786,4 +786,43 @@ Re-established a stable `fbi`-based slideshow under user `pi` after privilege co
 System operates normally on boot. Cards update in real time. Minimal flicker remains but all functions verified stable.
 
 relevant source : https://raspberrypi.stackexchange.com/questions/24180/how-can-i-refresh-image-displayed-by-fbi-without-black-screen-transition
+
+
+## Development Log — Entry 6 (Troubleshooting Remaining Flicker)
+
+### Summary
+
+* Investigated and attempted to resolve the minor frame flicker persisting in the `fbi`-based slideshow loop under non-root privileges.
+* Explored multiple tweaks to `fbi` invocation, systemd service capabilities, and alternative display methods, but none fully eliminated the refresh gap.
+* Key lesson: `fbi` restarts introduce unavoidable VT artifacts on resource-constrained Pi Zero; direct framebuffer manipulation is required for seamless updates.
+* Decided to pivot toward a custom Python blitter (`fb_show.py`) for zero-flicker PNG blits, preserving the existing PNG render pipeline.
+
+### Details
+
+* **Root Cause:**  
+  Even with restored per-image `fbi` calls and TTY capabilities, the Pi Zero's limited CPU/GPU resources cause a brief black frame or artifact during each `killall fbi` + relaunch cycle. This is exacerbated by running as user `pi` (for security) and the SPI LCD's slow refresh rate.
+
+* **Attempts and Failures:**  
+  - Tested single-instance `fbi` with `-cachemem 0 -t $DELAY` and playlist symlinks to force reloads without restarts—resulted in stale images or crashes on file changes.  
+  - Added `fbi` flags like `--blend 0` and `--noverbose`; no impact on flicker.  
+  - Experimented with `chvt` pre/post each slide and `setterm -blank 0 -powersave off` to suppress console blanking—reduced artifacts but flicker remained.  
+  - Tried running the service as root again (temporarily)—flicker minimized but unacceptable for long-term security.  
+  - Evaluated alternatives like `fim` (fbi fork) and `fbv`—similar issues, plus poorer PNG support or added dependencies.
+
+* **Lessons Learned:**  
+  - Command-line framebuffer tools like `fbi` are great for prototyping but inadequate for flicker-free slideshows on low-power hardware; they weren't designed for rapid, seamless looping.  
+  - Systemd's capability bounding (e.g., `CAP_SYS_TTY_CONFIG`) helps with VT control but doesn't address the core relaunch overhead.  
+  - Direct `/dev/fb1` writes in Python (via Pillow's raw bytes) offer precise control and can reuse existing PNG renders without external binaries.
+
+* **Next Steps:**  
+  - Implement `fb_show.py` as a drop-in blitter, called in a loop similar to `run_slideshow.sh`.  
+  - Update `pidisplay.service` to invoke the new Python viewer.  
+  - Validate performance on Pi Zero (aim for <100ms per blit to maintain smoothness).
+
+* **Result:**  
+  Flicker root causes fully diagnosed; no further `fbi` optimizations viable. System remains operational with minor flicker until blitter integration. This sets the stage for a more robust, Python-native display path.
+
+relevant source: https://github.com/adafruit/Adafruit_Python_ILI9341 (inspiration for raw fb blits)
+
+---
 

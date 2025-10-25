@@ -2,6 +2,14 @@
 
 > Summarized highlights from the active development log (`develop.md`).
 
+## [2025-10-24] — Flicker Troubleshooting and Blitter Pivot
+- Diagnosed persistent minor flicker in `fbi` slideshow due to relaunch overhead on Pi Zero.
+- Attempted optimizations: single-instance `fbi` with playlists, VT tweaks, alternative tools (`fim`, `fbv`).
+- Confirmed limitations of external framebuffer viewers; pivoted to custom Python blitter for direct `/dev/fb1` writes.
+- Documented failures and lessons in `develop.md` to guide future display enhancements.
+
+---
+
 ## [2025-10-20] — Stability Restoration and Timer Validation
 - Reinstated `fbi` slideshow under user `pi` with TTY and capability fixes.
 - Added pre-display VT clear to prevent console text artifacts.
