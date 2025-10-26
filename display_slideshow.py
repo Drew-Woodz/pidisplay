@@ -9,7 +9,6 @@ import struct
 
 FB = "/dev/fb1"
 W, H = 480, 320
-RAW_FMT = "RGB;16"  # Try RGB;16 first, was BGR;16
 IMAGE_DIR = os.path.expanduser("~/pidisplay/playlist")
 INTERVAL = float(os.environ.get("SLIDE_INTERVAL", "8"))
 
@@ -17,33 +16,25 @@ INTERVAL = float(os.environ.get("SLIDE_INTERVAL", "8"))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 def rgb_to_rgb565(img):
-    """Convert RGB image to RGB565 bytes manually if RAW_FMT fails."""
+    """Convert RGB to BGR565 with boosted R/B precision for ILI9486."""
     img = img.convert("RGB").resize((W, H), Image.Resampling.BICUBIC)
     pixels = img.load()
     data = bytearray()
     for y in range(H):
         for x in range(W):
             r, g, b = pixels[x, y]
-            # RGB565: 5 bits R, 6 bits G, 5 bits B
-            r = (r >> 3) & 0x1F
-            g = (g >> 2) & 0x3F
-            b = (b >> 3) & 0x1F
-            pixel = (r << 11) | (g << 5) | b
+            # Boost R/B slightly, scale to 5/6 bits
+            b5 = min(((b * 32 + 127) // 255), 31) & 0x1F  # 5 bits
+            g6 = min(((g * 64 + 127) // 255), 63) & 0x3F  # 6 bits
+            r5 = min(((r * 32 + 127) // 255), 31) & 0x1F  # 5 bits
+            pixel = (b5 << 11) | (g6 << 5) | r5  # BGR565
             data.extend(struct.pack("<H", pixel))
     return data
 
 def blit(path):
     try:
-        img = Image.open(path)
-        try:
-            # Try Pillow's raw format first
-            img = img.convert("RGB").resize((W, H), Image.Resampling.BICUBIC)
-            data = img.tobytes("raw", RAW_FMT)
-            logging.info(f"Blitted {path} with {RAW_FMT}")
-        except ValueError as e:
-            # Fallback to manual RGB565 conversion
-            logging.warning(f"Pillow raw format failed: {e}, using manual RGB565")
-            data = rgb_to_rgb565(img)
+        with open(path, "rb") as f:
+            data = f.read()
         with open(FB, "r+b", buffering=0) as f:
             f.seek(0)
             f.write(data)
@@ -53,7 +44,7 @@ def blit(path):
 
 def main():
     while True:
-        files = sorted(glob.glob(os.path.join(IMAGE_DIR, "*.png")))
+        files = sorted(glob.glob(os.path.join(IMAGE_DIR, "*.png")))  # Still .png for now
         if not files:
             logging.warning(f"No images in {IMAGE_DIR}")
             time.sleep(INTERVAL)
@@ -64,7 +55,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+      main()
     except KeyboardInterrupt:
         logging.info("Stopped by user")
     except Exception as e:

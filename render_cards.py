@@ -60,8 +60,19 @@ def dither_to_rgb565(img_rgb):
 def atomic_save(img: Image.Image, name: str):
     path = os.path.join(OUT, name)
     tmpp = path + ".tmp"
-    to_save = dither_to_rgb565(img) if DITHER_565 else img
-    to_save.save(tmpp, format="PNG", optimize=True)
+    img = img.convert("RGB").resize((W, H), Image.Resampling.BICUBIC)
+    pixels = img.load()
+    data = bytearray()
+    for y in range(H):
+        for x in range(W):
+            r, g, b = pixels[x, y]
+            b5 = (b >> 3) & 0x1F
+            g6 = (g >> 2) & 0x3F
+            r5 = (r >> 3) & 0x1F
+            pixel = (b5 << 11) | (g6 << 5) | r5  # BGR565
+            data.extend(struct.pack("<H", pixel))
+    with open(tmpp, "wb") as f:
+        f.write(data)
     os.replace(tmpp, path)
     return path
 
