@@ -4,7 +4,7 @@
 
 ---
 
-## ✅ Accomplished
+## Completed Accomplished
 
 * [x] **Baseline PNG pipeline to fb1**  
   Pillow → RGB565 → `/dev/fb1` confirmed functional, correct color order, and performant enough for 480×320.
@@ -45,9 +45,24 @@
 * [x] **Secrets/env wiring for API keys**  
   `.pidisplay_env` + `EnvironmentFile=` in relevant services.
 
+* [x] **Custom Python blitter (no fbi)**  
+  Direct `/dev/fb1` raw-RGB565 writes; runs as `pi` user with only `video` group. Eliminates VT/tty permissions and flicker from `fbi` restarts.
+
+* [x] **Dual-output atomic save**  
+  Every renderer produces `*.png` (VS Code debug) **and** `*.raw` (blitter). Guarantees no half-drawn frames and keeps PNGs readable.
+
+* [x] **Dithering disabled for 16-bit panel**  
+  Ordered Bayer dithering caused green-tint / purple headers on low-brightness values. Verified with `test_colors_2.py`; now `DITHER_565 = False`.
+
+* [x] **Day/night background tint**  
+  Weather card uses light-sky-blue during daylight, dark `BG` at night – driven by `is_day` flag from Open-Meteo.
+
+* [x] **Consistent timestamp styling**  
+  Unified `TIMESTAMP_*` constants + `text_size()` helper used in Weather, News, and footer. Right-aligned, top-aligned, higher contrast.
+
 ---
 
-## 🔧 In Progress / Upcoming
+## In Progress / Upcoming
 
 * [ ] **Renderer daemon split**  
   Continuous process managing rotation, touch, and on-demand repaints. Updaters remain decoupled via JSON data files.
@@ -109,7 +124,7 @@
 
 ---
 
-## 🚀 Planned After Core Stabilization
+## Planned After Core Stabilization
 
 * [ ] **Sports card**  
   Scrollable scores or headlines by league. Menu toggles which leagues are shown.
@@ -134,7 +149,7 @@
 
 ---
 
-## 💭 Maybe Someday
+## Maybe Someday
 
 * [ ] **Full C++ renderer path**  
   Move render loop and fb writes fully native if Python becomes the bottleneck.
