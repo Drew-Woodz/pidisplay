@@ -16,18 +16,17 @@ INTERVAL = float(os.environ.get("SLIDE_INTERVAL", "8"))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 def rgb_to_rgb565(img):
-    """Convert RGB to BGR565 with boosted R/B precision for ILI9486."""
     img = img.convert("RGB").resize((W, H), Image.Resampling.BICUBIC)
     pixels = img.load()
     data = bytearray()
     for y in range(H):
         for x in range(W):
             r, g, b = pixels[x, y]
-            # Boost R/B slightly, scale to 5/6 bits
-            b5 = min(((b * 32 + 127) // 255), 31) & 0x1F  # 5 bits
-            g6 = min(((g * 64 + 127) // 255), 63) & 0x3F  # 6 bits
-            r5 = min(((r * 32 + 127) // 255), 31) & 0x1F  # 5 bits
-            pixel = (b5 << 11) | (g6 << 5) | r5  # BGR565
+            r5 = (r >> 3) & 0x1F
+            g6 = (g >> 2) & 0x3F
+            b5 = (b >> 3) & 0x1F
+            # RGB565 — NO SWAP
+            pixel = (r5 << 11) | (g6 << 5) | b5
             data.extend(struct.pack("<H", pixel))
     return data
 
