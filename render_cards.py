@@ -2,7 +2,7 @@
 # render_cards.py
 # Render BTC / News / Weather cards to fixed PNG filenames atomically.
 import os, io, math, time, textwrap, argparse, json, struct
-from datetime import datetime
+from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 
 # ---------- Paths & constants ----------
