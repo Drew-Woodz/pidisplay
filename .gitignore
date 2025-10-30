@@ -9,6 +9,7 @@ __pycache__/
 
 # Rendered & temp assets
 images/*.png
+images/*.raw
 images/*.tmp
 state/*.json
 images_archive/

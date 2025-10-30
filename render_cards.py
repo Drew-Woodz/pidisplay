@@ -13,10 +13,15 @@ W, H = 480, 320
 BG = (12, 12, 12)
 FG = (235, 235, 235)
 ACCENT = (0, 200, 255)
-MUTED = (150, 150, 150)
+MUTED = (220,220,220)
+
+TIMESTAMP_FONT_SIZE = 20          # a little bigger, still fits
+TIMESTAMP_COLOR     = (200, 200, 200)   # higher contrast
+TIMESTAMP_X_PAD     = 12
+TIMESTAMP_Y         = 12          # distance from TOP edge (not baseline)
 
 # ---- LCD quality: pre-dither to RGB565 (optional) ----
-DITHER_565 = True  # set False to disable
+DITHER_565 = False  # set False to disable
 
 _BAYER8 = [
     [0,32,8,40,2,34,10,42],
@@ -177,7 +182,7 @@ def is_stale(ts_iso, max_age_sec=180):
         return True
 
 def draw_header(d, title: str):
-    d.rectangle([0, 0, W, 38], fill=(20, 20, 20))
+    d.rectangle([0, 0, W, 38], fill=BG)
     d.text((12, 8), title, fill=FG, font=font(22))
 
 # --- Weather icon helpers ---
@@ -265,6 +270,11 @@ def _fmt_clock(ts_str):
     except ValueError:
         return dt.strftime("%I:%M %p").lstrip("0")  # macOS/Windows fallback
 
+# exact width/height (handles negative left-bearing)
+def text_size(draw: ImageDraw.ImageDraw, txt: str, fnt) -> tuple[int, int]:
+    l, t, r, b = draw.textbbox((0, 0), txt, font=fnt)
+    return r - l, b - t
+
 def pick_moon_icon(phase):
     """
     phase: float in [0,1] where 0=new, 0.25=first quarter, 0.5=full, 0.75=third.
@@ -301,7 +311,7 @@ def render_btc():
     # Change
     if chg is not None:
         sign = "▲" if chg >= 0 else "▼"
-        color = (60, 220, 100) if chg >= 0 else (255, 90, 90)
+        color = (0,255, 0) if chg >= 0 else (255, 0, 0)
         d.text((18, 130), f"{sign} {chg:+.2f}% (24h)", fill=color, font=font(26))
 
     # Footer: updated time or STALE (BTC fetch cadence ~30s; tolerate 3 min)
@@ -344,13 +354,22 @@ ICON_DY      = 16       # icon y offset from HOURLY_Y (place near the temp line)
 
 def render_weather():
     data = load_json(os.path.expanduser("~/pidisplay/state/weather.json"))
-    img = Image.new("RGB", (W, H), BG)
+    
+    # === Day / Night background ===
+    is_day = 1  # default fallback
+    if data and "now" in data:
+        is_day = int(data["now"].get("is_day") or 0)
+    bg_color = (135, 206, 235) if is_day else BG
+    img = Image.new("RGB", (W, H), bg_color)
     d = ImageDraw.Draw(img)
+
+    # === Header ===
     title = "Weather"
     if data and data.get("loc", {}).get("city"):
         title += f" • {data['loc']['city']}"
     draw_header(d, title)
 
+    # === No data fallback ===
     if not data or "now" not in data:
         d.text((16, 60), "No weather data", fill=(255, 120, 120), font=font(32))
         d.text((16, H-30), "OFFLINE", fill=(255, 120, 120), font=font(18))
@@ -361,30 +380,23 @@ def render_weather():
     temp = noww.get("temp_f")
     wc   = noww.get("weathercode")
     desc = WCMAP.get(int(wc) if wc is not None else -1, "—")
-    is_day = int(noww.get("is_day") or 0)
 
-    # === Header right-side blurb: Sunrise/Sunset ===
-    # Open-Meteo daily times are in the requested timezone (we asked for tz),
-    # so just format them. At night, prefer tomorrow's sunrise when present.
+    # === Sunrise / Sunset blurb (top-right, under header) ===
     sunset_str = _fmt_clock(astro.get("sunset"))
     sunrise_next_str = _fmt_clock(astro.get("sunrise_next") or astro.get("sunrise"))
-    blurb = f"Sunset {sunset_str}" if is_day == 1 else f"Sunrise {sunrise_next_str}"
-    # draw in top-right, under the title bar
-    blurb_w = d.textbbox((0,0), blurb, font=font(16))[2]
-    d.text((W - blurb_w - 12, 8), blurb, fill=MUTED, font=font(16))
+    blurb = f"Sunset {sunset_str}" if is_day else f"Sunrise {sunrise_next_str}"
+
+    bw, _ = text_size(d, blurb, font(TIMESTAMP_FONT_SIZE))
+    d.text((W - bw - TIMESTAMP_X_PAD, TIMESTAMP_Y),
+           blurb, fill=TIMESTAMP_COLOR, font=font(TIMESTAMP_FONT_SIZE))
 
     # === Big temp + description ===
     main = f"{int(round(temp))}°F" if isinstance(temp, (int, float)) else "—°"
     d.text((16, 60), main, fill=FG, font=font(56))
     d.text((16, 126), desc, fill=(180, 220, 255), font=font(26))
 
-    # === Hero icon (base sun/moon + layers) ===
-    if is_day == 1:
-        base_name = "sun.png"
-    else:
-        phase = astro.get("moon_phase")
-        base_name = pick_moon_icon(phase)
-
+    # === Hero icon ===
+    base_name = "sun.png" if is_day else pick_moon_icon(astro.get("moon_phase"))
     base_im = load_rgba(os.path.join(ICON_WEATHER_BASE, base_name), size=(HERO_SZ, HERO_SZ))
 
     sky_name, precip_name, thunder_name = wc_to_layers(int(wc) if wc is not None else -1)
@@ -394,16 +406,13 @@ def render_weather():
 
     icon_x, icon_y = 200, 56
     for layer in (base_im, sky_im, precip_im, thunder_im):
-        if layer is not None:
+        if layer:
             img.paste(layer, (icon_x, icon_y), layer)
 
-    # Mini 6-hour strip
-    from datetime import datetime, timedelta
-    y = 180
-    d.text((16, y-24), "Coming Up", fill=(180, 180, 180), font=font(18))
+    # === Hourly strip (6 columns) ===
+    d.text((16, 180 - 24), "Coming Up", fill=ACCENT, font=font(18))
 
-    hourly_list = (data.get("hourly", []) or [])
-    # quick lookup by ISO hour key, e.g. "2025-10-13T18:00"
+    hourly_list = data.get("hourly", []) or []
     hour_map = {h.get("time"): h for h in hourly_list}
 
     now = datetime.now()
@@ -420,58 +429,44 @@ def render_weather():
         keys.append(t.strftime("%Y-%m-%dT%H:00"))
         t += timedelta(hours=1)
 
+    # ← ONLY ONE LOOP
     x = 16
     for lbl, key in zip(labels, keys):
-        h  = hour_map.get(key, {}) or {}
+        h = hour_map.get(key, {}) or {}
         tf = h.get("temp_f")
         pp = h.get("pop")
         hwc = h.get("weathercode")
 
-        # time label
-    x = 16
-    for lbl, key in zip(labels, keys):
-        h   = hour_map.get(key, {}) or {}
-        tf  = h.get("temp_f")
-        pp  = h.get("pop")
-        hwc = h.get("weathercode")
+        # Fixed positions
+        d.text((x, HOURLY_Y + TIME_DY), lbl, fill=MUTED, font=font(16))
+        d.text((x, HOURLY_Y + TEMP_DY),
+               f"{int(round(tf))}°" if isinstance(tf, (int, float)) else "—°",
+               fill=FG, font=font(20))
 
-        # 1) fixed anchors (left-aligned columns)
-        time_xy = (x, HOURLY_Y + TIME_DY)
-        temp_xy = (x, HOURLY_Y + TEMP_DY)
-        pop_xy  = (x, HOURLY_Y + POP_DY)
-
-        # time (never moves)
-        d.text(time_xy, lbl, fill=MUTED, font=font(16))
-
-        # temperature (never moves)
-        temp_txt = f"{int(round(tf))}°" if isinstance(tf, (int, float)) else "—°"
-        d.text(temp_xy, temp_txt, fill=FG, font=font(20))
-
-        # tiny icon (overlay; does NOT change text positions)
+        # Tiny icon
         tiny_name = wc_to_tiny_layer(int(hwc) if hwc is not None else -1)
         if tiny_name:
-            tiny_im = load_rgba(os.path.join(ICON_WEATHER_TINY, tiny_name), size=(ICON_SZ_TINY, ICON_SZ_TINY))
-            if tiny_im is not None:
-                ix = x + ICON_DX
-                iy = HOURLY_Y + ICON_DY
-                img.paste(tiny_im, (ix, iy), tiny_im)
+            tiny_im = load_rgba(os.path.join(ICON_WEATHER_TINY, tiny_name),
+                                size=(ICON_SZ_TINY, ICON_SZ_TINY))
+            if tiny_im:
+                img.paste(tiny_im, (x + ICON_DX, HOURLY_Y + ICON_DY), tiny_im)
 
-        # precip %
-        if isinstance(pp, (int, float)):
-            d.text(pop_xy, f"{int(pp)}%", fill=(140, 200, 255), font=font(14))
-        else:
-            d.text(pop_xy, "—", fill=(100, 120, 140), font=font(14))
+        # Precip %
+        pop_txt = f"{int(pp)}%" if isinstance(pp, (int, float)) else "—"
+        pop_fill = (140, 200, 255) if isinstance(pp, (int, float)) else (100, 120, 140)
+        d.text((x, HOURLY_Y + POP_DY), pop_txt, fill=pop_fill, font=font(14))
 
-        # advance to next column
         x += HOURLY_COL_W
         if x > W - 64:
             break
 
-
-    # Footer time: STALE if older than 30 min
+    # === Footer: Updated / STALE ===
     stale = is_stale(data.get("updated", ""), max_age_sec=1800)
     footer = "STALE" if stale else "Updated"
-    d.text((16, H-30), f"{footer} {datetime.now().strftime('%b %d %I:%M %p')}", fill=MUTED, font=font(18))
+    footer_text = f"{footer} {datetime.now().strftime('%b %d %I:%M %p')}"
+    fw, _ = text_size(d, footer_text, font(18))
+    d.text((16, H - 30), footer_text, fill=MUTED, font=font(18))
+
     return atomic_save(img, "weather.png")
 
 # ---------- News: clustering from state/news.json ----------
@@ -588,10 +583,20 @@ def render_news():
         if y > H - 40:
             break
 
-    # Top-right timestamp just under the header
+    # # Top-right timestamp just under the header
+    # stamp = datetime.now().strftime("%b %d %I:%M %p")
+    # sw = d.textbbox((0, 0), stamp, font=font(18))[2]
+    # d.text((W - sw - 12, 10), stamp, fill=MUTED, font=font(18))
+
     stamp = datetime.now().strftime("%b %d %I:%M %p")
-    sw = d.textbbox((0, 0), stamp, font=font(16))[2]
-    d.text((W - sw - 12, 10), stamp, fill=MUTED, font=font(16))
+    ts_w, ts_h = text_size(d, stamp, font(TIMESTAMP_FONT_SIZE))
+
+    x_pos = W - ts_w - TIMESTAMP_X_PAD
+    y_pos = TIMESTAMP_Y                     # top-aligned
+
+    d.text((x_pos, y_pos), stamp,
+        fill=TIMESTAMP_COLOR,
+        font=font(TIMESTAMP_FONT_SIZE))
 
     return atomic_save(img, "news.png")
 
