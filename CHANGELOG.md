@@ -2,6 +2,21 @@
 
 > Summarized highlights from the active development log (`develop.md`).
 
+## [1.3.1] - 2025-10-30
+### Fixed
+- **Color distortion in dark/mid tones** (green tint, purple headers, black backgrounds)
+- **Dithering over-aggression** on 16-bit panel
+
+### Changed
+- `DITHER_565 = False` in all renderers
+- Dithering removed — not needed on high-res SPI LCD
+
+### Verified
+- `test_colors_2.py` → all colors correct, greys neutral
+- BTC, News, Weather headers now correct dark grey
+
+---
+
 ## [2025-10-24] — Flicker Troubleshooting and Blitter Pivot
 - Diagnosed persistent minor flicker in `fbi` slideshow due to relaunch overhead on Pi Zero.
 - Attempted optimizations: single-instance `fbi` with playlists, VT tweaks, alternative tools (`fim`, `fbv`).

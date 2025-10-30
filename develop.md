@@ -826,3 +826,35 @@ relevant source: https://github.com/adafruit/Adafruit_Python_ILI9341 (inspiratio
 
 ---
 
+## Development Log — Entry 7 (Full Custom Blitter + Dual PNG/RAW Output)
+
+**Summary:**  
+Completed the pivot to a **secure, flicker-free, Python-native blitter** using direct `/dev/fb1` raw writes. Achieved **zero external dependencies** (`fbi` removed), **atomic dual output** (PNG for VS Code + RAW for display), and **correct color fidelity** on the Waveshare 3.5" SPI LCD.
+
+**Root Cause of Prior Black Screen:**  
+The black screen emerged from **incomplete blitter integration** after the `User=pi` security pivot. While `fbi` was blocked by VT/tty permissions, the blitter expected `*.raw` files — but renderers only produced `*.png`. This created a **pipeline mismatch**: PNGs were generated, but nothing was blitted.
+
+**Key Misstep (Other Chat):**  
+Early blitter prototype **removed PNG output** to "simplify", producing only `.raw`. This broke VS Code debugging and caused confusion when PNGs appeared corrupted (they were mislabeled raw data). Questioning this led to a **premature rollback**, abandoning the blitter path temporarily.
+
+**Final Fixes Implemented:**
+
+* **Dual atomic output** in `render_cards.py` and `render_clock.py`:
+  ```python
+  # PNG for VS Code + RAW for blitter
+  atomic_save() → btc.png + btc.raw
+
+## Development Log — Entry 8 (Dithering Disabled – Color Accuracy)
+
+**Summary:**  
+Disabled **ordered Bayer dithering** after `test_colors_2.py` revealed **severe color distortion** in dark and mid-tone ranges. Primary colors were correct, confirming **RGB565 byte order**, but greys and dark headers were **green-tinted, purple, or black**.
+
+**Root Cause:**  
+Dithering to 32/64/32 levels on low-brightness values (e.g., `12,12,12`) caused **quantization collapse** and **green dominance** due to 6-bit green channel. This produced:
+- `128,128,128` → baby puke green
+- `64,64,64` → deep purple
+- `12,12,12` → black
+
+**Fix:**  
+```python
+DITHER_565 = False
