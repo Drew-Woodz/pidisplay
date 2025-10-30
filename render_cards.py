@@ -58,12 +58,13 @@ def dither_to_rgb565(img_rgb):
     return out
 
 def atomic_save(img: Image.Image, name: str):
-    path = os.path.join(OUT, name)  # e.g. /home/pi/pidisplay/images/btc.raw
+    path = os.path.join(OUT, name)
     tmpp = path + ".tmp"
     
     img = img.convert("RGB").resize((480, 320), Image.Resampling.BICUBIC)
+    rgb565 = Image.new("RGB", (480, 320))
+    draw = ImageDraw.Draw(rgb565)
     pixels = img.load()
-    data = bytearray()
     
     for y in range(320):
         for x in range(480):
@@ -71,12 +72,13 @@ def atomic_save(img: Image.Image, name: str):
             r5 = (r >> 3) & 0x1F
             g6 = (g >> 2) & 0x3F
             b5 = (b >> 3) & 0x1F
-            # RGB565 — driver will swap R/B
             pixel = (r5 << 11) | (g6 << 5) | b5
-            data.extend(struct.pack("<H", pixel))
+            r8 = (r5 * 255) // 31
+            g8 = (g6 * 255) // 63
+            b8 = (b5 * 255) // 31
+            draw.point((x, y), (r8, g8, b8))
     
-    with open(tmpp, "wb") as f:
-        f.write(data)
+    rgb565.save(tmpp, format="PNG", optimize=True)
     os.replace(tmpp, path)
     return path
 

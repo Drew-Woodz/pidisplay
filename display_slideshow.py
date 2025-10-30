@@ -14,12 +14,17 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 
 def blit(path):
     try:
-        with open(path, "rb") as f:
-            data = f.read()
-        if len(data) != 480*320*2:
-            logging.error(f"Bad size: {path} ({len(data)} bytes)")
-            return
-        with open(FB, "r+b", buffering=0) as f:
+        img = Image.open(path).convert("RGB")
+        data = bytearray()
+        for y in range(H):
+            for x in range(W):
+                r, g, b = img.getpixel((x, y))
+                r5 = (r >> 3) & 0x1F
+                g6 = (g >> 2) & 0x3F
+                b5 = (b >> 3) & 0x1F
+                pixel = (r5 << 11) | (g6 << 5) | b5  # RGB565
+                data.extend(struct.pack("<H", pixel))
+        with open(FB, "r+b") as f:
             f.seek(0)
             f.write(data)
         logging.info(f"Blitted {path}")
