@@ -39,27 +39,35 @@ def main():
     time_str = now.strftime("%-I:%M %p") if "%" in "%-I" else now.strftime("%I:%M %p").lstrip("0")
     date_str = now.strftime("%a, %b %d %Y")
 
-    img = Image.new("RGB", (W, H), (10, 10, 12))
-    d = ImageDraw.Draw(img)
+    # ----- PNG (for VS Code) -----
+        png_tmp = TMP + ".png"
+        img.save(png_tmp, format="PNG", optimize=True)
+        os.replace(png_tmp, OUT)          # OUT = …/clock.png
 
-    font_big   = load_font(64)
-    font_small = load_font(28)
-    font_tiny  = load_font(14)
+        # ----- RAW RGB565 -----
+        raw_path = OUT.replace(".png", ".raw")
+        raw_tmp  = raw_path + ".tmp"
 
-    tw, th = text_wh(d, time_str, font_big)
-    dw, dh = text_wh(d, date_str, font_small)
+        img_resized = img.convert("RGB").resize((W, H), Image.BICUBIC)
+        if DITHER_565:
+            img_resized = dither_to_rgb565(img_resized)
 
-    d.text(((W - tw) // 2, H // 2 - th - 8), time_str, fill=(240,240,240), font=font_big)
-    d.text(((W - dw) // 2, H // 2 + 6),     date_str, fill=(180,180,180), font=font_small)
+        data = bytearray()
+        pixels = img_resized.load()
+        for y in range(H):
+            for x in range(W):
+                r, g, b = pixels[x, y]
+                r5 = (r >> 3) & 0x1F
+                g6 = (g >> 2) & 0x3F
+                b5 = (b >> 3) & 0x1F
+                pixel = (r5 << 11) | (g6 << 5) | b5
+                data.extend(struct.pack("<H", pixel))
 
-    # Draw footer BEFORE saving
-    summary = _health_summary()
-    if summary:
-        d.text((12, H - 22), summary, fill=(150,150,150), font=font_tiny)
-
-    # Atomic save
-    img.save(TMP, format="PNG", optimize=True)
-    os.replace(TMP, OUT)
+        with open(raw_tmp, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(raw_tmp, raw_path)
 
 if __name__ == "__main__":
     main()

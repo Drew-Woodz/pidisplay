@@ -57,30 +57,47 @@ def dither_to_rgb565(img_rgb):
             dst[x, y] = (r, g, b)
     return out
 
+# ---------- Atomic dual-save (PNG + RAW) ----------
 def atomic_save(img: Image.Image, name: str):
-    path = os.path.join(OUT, name)
-    tmpp = path + ".tmp"
-    
-    img = img.convert("RGB").resize((480, 320), Image.Resampling.BICUBIC)
-    rgb565 = Image.new("RGB", (480, 320))
-    draw = ImageDraw.Draw(rgb565)
-    pixels = img.load()
-    
-    for y in range(320):
-        for x in range(480):
+    """
+    Saves:
+      * name.png   normal PNG for VS Code / debugging
+      * name.raw   raw RGB565 little-endian for the blitter
+    """
+    # ----- 1. PNG (unchanged, viewable) -----
+    png_path = os.path.join(OUT, name)               # e.g. btc.png
+    png_tmp  = png_path + ".tmp"
+    img.save(png_tmp, format="PNG", optimize=True)
+    os.replace(png_tmp, png_path)
+
+    # ----- 2. RAW RGB565 (exact bytes for /dev/fb1) -----
+    raw_path = png_path.replace(".png", ".raw")      # e.g. btc.raw
+    raw_tmp  = raw_path + ".tmp"
+
+    img_resized = img.convert("RGB").resize((W, H), Image.BICUBIC)
+
+    # optional dither step (keep it if you like the smoother gradients)
+    if DITHER_565:
+        img_resized = dither_to_rgb565(img_resized)
+
+    data = bytearray()
+    pixels = img_resized.load()
+    for y in range(H):
+        for x in range(W):
             r, g, b = pixels[x, y]
             r5 = (r >> 3) & 0x1F
             g6 = (g >> 2) & 0x3F
             b5 = (b >> 3) & 0x1F
             pixel = (r5 << 11) | (g6 << 5) | b5
-            r8 = (r5 * 255) // 31
-            g8 = (g6 * 255) // 63
-            b8 = (b5 * 255) // 31
-            draw.point((x, y), (r8, g8, b8))
-    
-    rgb565.save(tmpp, format="PNG", optimize=True)
-    os.replace(tmpp, path)
-    return path
+            data.extend(struct.pack("<H", pixel))
+
+    with open(raw_tmp, "wb") as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(raw_tmp, raw_path)
+
+    return png_path   # return PNG path for logging / callers
 
 # ---------- News cell style (icons + tints) ----------
 ICON_DIR = os.path.expanduser("~/pidisplay/icons")
