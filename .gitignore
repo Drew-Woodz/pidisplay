@@ -6,7 +6,6 @@ __pycache__/
 *.env
 ~/.config/pidisplay/*
 
-
 # Rendered & temp assets
 images/*.png
 images/*.raw
