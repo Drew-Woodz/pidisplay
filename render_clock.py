@@ -87,7 +87,7 @@ def main():
     # --- Fonts ---
     font_time = load_font(72)
     font_date = load_font(24)
-    font_health = load_font(12)
+    font_health = load_font(16)
 
     # --- Draw time ---
     tw, th = text_wh(draw, time_str, font_time)

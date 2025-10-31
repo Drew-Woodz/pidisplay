@@ -11,8 +11,9 @@ os.makedirs(OUT, exist_ok=True)
 
 W, H = 480, 320
 BG = (12, 12, 12)
+BG_DAY = (55, 175, 255)
 FG = (235, 235, 235)
-ACCENT = (0, 200, 255)
+ACCENT = (0, 100, 255)
 MUTED = (220,220,220)
 
 TIMESTAMP_FONT_SIZE = 20          # a little bigger, still fits
@@ -359,7 +360,7 @@ def render_weather():
     is_day = 1  # default fallback
     if data and "now" in data:
         is_day = int(data["now"].get("is_day") or 0)
-    bg_color = (135, 206, 235) if is_day else BG
+    bg_color = BG_DAY if is_day else BG
     img = Image.new("RGB", (W, H), bg_color)
     d = ImageDraw.Draw(img)
 
