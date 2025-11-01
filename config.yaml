@@ -1,0 +1,54 @@
+# ~/pidisplay/config.yaml
+cards:
+  order:
+    - clock
+    - weather
+    - btc
+    - news
+  enabled:
+    clock: true
+    weather: true
+    btc: true
+    news: true
+
+intervals:
+  clock: 15
+  weather: 300
+  btc: 60
+  news: 300
+
+colors:
+  bg: [12, 12, 12]
+  fg: [235, 235, 235]
+  accent: [0, 100, 255]
+  muted: [220,220,220]
+  day_bg: [55, 175, 255]
+  time_stamp: [200, 200, 200]
+
+fonts:
+  timestamp_size: 20
+  header_size: 19
+  big_temp_size: 56
+
+padding:
+  timestamp_x: 12
+  timestamp_y: 12
+
+  hourly_col_w: 72       # column width
+  hourly_y: 180      # top of the hourly block ("Coming Up" sits at Y-24)
+  time_dy: 0        # y-offset for the time label relative to HOURLY_Y
+  temp_dy: 18       # y-offset for the temperature
+  pop_dy: 38       # y-offset for precip %
+  icon_sz_tiny: 20       # 20x20 tiny weather icon
+  icon_dx: 36       # icon x offset from the column anchor (x)
+  icon_dy: 16       # icon y offset from HOURLY_Y (place near the temp line)
+
+  # News Card - Layout constants to fit 5 cells comfortably
+  top_margin: 6
+  cell_h: 53
+  gap: 2
+  l_margin: 12
+  r_margin: 12
+  pad: 8
+  icon_sz: 24
+  border: 1
