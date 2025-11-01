@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-# display_slideshow.py  (custom blitter – no fbi, no VT)
+# display_slideshow.py
 
+import watchdog.events, watchdog.observers
 import os, glob, time, logging, struct
+import subprocess
+import time
 
 FB = "/dev/fb1"
 W, H = 480, 320
@@ -11,6 +14,13 @@ INTERVAL = float(os.environ.get("SLIDE_INTERVAL", "8"))
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s: %(message)s")
+
+class ConfigHandler(watchdog.events.FileSystemEventHandler):
+    def on_modified(self, event):
+        if event.src_path.endswith("config.yaml"):
+            global CONFIG
+            CONFIG = load_config()
+            logging.info("Config reloaded")
 
 def blit(raw_path):
     try:
@@ -25,6 +35,13 @@ def blit(raw_path):
         logging.error(f"Blit failed {raw_path}: {e}")
 
 def main():
+    observer = watchdog.observers.Observer()
+    observer.schedule(ConfigHandler(), path=str(CONFIG_PATH.parent), recursive=False)
+    observer.start()
+
+    enabled = {k: v for k, v in CONFIG["cards"]["enabled"].items() if v}
+    raw_files = [f for f in raw_files if os.path.basename(f).split(".")[0] in enabled]
+
     while True:
         raw_files = sorted(glob.glob(os.path.join(IMAGE_DIR, "*.raw")))
         if not raw_files:
