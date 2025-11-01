@@ -4,22 +4,60 @@
 import os, io, math, time, textwrap, argparse, json, struct
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
+from config import load as load_config
+CONFIG = load_config()
 
 # ---------- Paths & constants ----------
 OUT = os.path.expanduser("~/pidisplay/images")
 os.makedirs(OUT, exist_ok=True)
 
-W, H = 480, 320
-BG = (12, 12, 12)
-BG_DAY = (55, 175, 255)
-FG = (235, 235, 235)
-ACCENT = (0, 100, 255)
-MUTED = (220,220,220)
+# W, H = 480, 320
+# BG = (12, 12, 12)
+# BG_DAY = (55, 175, 255)
+# FG = (235, 235, 235)
+# ACCENT = (0, 100, 255)
+# MUTED = (220,220,220)
 
-TIMESTAMP_FONT_SIZE = 20          # a little bigger, still fits
-TIMESTAMP_COLOR     = (200, 200, 200)   # higher contrast
-TIMESTAMP_X_PAD     = 12
-TIMESTAMP_Y         = 12          # distance from TOP edge (not baseline)
+BG = tuple(CONFIG["colors"]["bg"])
+FG = tuple(CONFIG["colors"]["fg"])
+BG_DAY = tuple(CONFIG["colors"]["day_bg"])
+ACCENT = tuple(CONFIG["colors"]["accent"])
+MUTED = tuple(CONFIG["colors"]["muted"])
+TIMESTAMP_COLOR = tuple(CONFIG["colors"]["time_stamp"])
+
+# TIMESTAMP_FONT_SIZE = 20          # a little bigger, still fits
+# TIMESTAMP_COLOR     = (200, 200, 200)   # higher contrast
+# TIMESTAMP_X_PAD     = 12
+# TIMESTAMP_Y_PAD     = 12          # distance from TOP edge (not baseline)
+
+# Fonts
+TIMESTAMP_FONT_SIZE = tuple(CONFIG["fonts"]["timestamp_size"])
+HEAD_FONT = tuple(CONFIG["fonts"]["timestamp_size"])
+
+# Padding
+TIMESTAMP_X_PAD = tuple(CONFIG["padding"]["timestamp_x"])
+TIMESTAMP_Y_PAD = tuple(CONFIG["padding"]["timestamp_y"])
+
+# --- Hourly strip layout knobs ---
+HOURLY_COL_W = tuple(CONFIG["padding"]["hourly_col_w"])  # column width
+HOURLY_Y     = tuple(CONFIG["padding"]["hourly_y"])      # top of the hourly block ("Coming Up" sits at Y-24)
+TIME_DY      = tuple(CONFIG["padding"]["time_dy"])       # y-offset for the time label relative to HOURLY_Y
+TEMP_DY      = tuple(CONFIG["padding"]["temp_dy"])       # y-offset for the temperature
+POP_DY       = tuple(CONFIG["padding"]["pop_dy"])        # y-offset for precip %
+ICON_SZ_TINY = tuple(CONFIG["padding"]["icon_sz_tiny"])  # 20x20 tiny weather icon
+ICON_DX      = tuple(CONFIG["padding"]["icon_dx"])       # icon x offset from the column anchor (x)
+ICON_DY      = tuple(CONFIG["padding"]["icon_dy"])       # icon y offset from HOURLY_Y (place near the temp line)
+
+# News Card - Layout constants to fit 5 cells comfortably
+TOP_MARGIN = tuple(CONFIG["padding"]["top_margin"])
+CELL_H = tuple(CONFIG["padding"]["cell_h"])
+GAP = tuple(CONFIG["padding"]["gap"])
+R_MARGIN = tuple(CONFIG["padding"]["l_margin"])
+L_MARGIN = tuple(CONFIG["padding"]["r_margin"])
+PAD = tuple(CONFIG["padding"]["pad"])
+ICON_SZ = tuple(CONFIG["padding"]["icon_sz"])
+BORDER = tuple(CONFIG["padding"]["border"])
+
 
 # ---- LCD quality: pre-dither to RGB565 (optional) ----
 DITHER_565 = False  # set False to disable
@@ -342,15 +380,6 @@ MOON_ICONS = [
     "moon_waning_crescent.png",
 ]
 
-# --- Hourly strip layout knobs ---
-HOURLY_COL_W = 72       # column width
-HOURLY_Y     = 180      # top of the hourly block ("Coming Up" sits at Y-24)
-TIME_DY      = 0        # y-offset for the time label relative to HOURLY_Y
-TEMP_DY      = 18       # y-offset for the temperature
-POP_DY       = 38       # y-offset for precip %
-ICON_SZ_TINY = 20       # 20x20 tiny weather icon
-ICON_DX      = 36       # icon x offset from the column anchor (x)
-ICON_DY      = 16       # icon y offset from HOURLY_Y (place near the temp line)
 
 
 def render_weather():
@@ -388,7 +417,7 @@ def render_weather():
     blurb = f"Sunset {sunset_str}" if is_day else f"Sunrise {sunrise_next_str}"
 
     bw, _ = text_size(d, blurb, font(TIMESTAMP_FONT_SIZE))
-    d.text((W - bw - TIMESTAMP_X_PAD, TIMESTAMP_Y),
+    d.text((W - bw - TIMESTAMP_X_PAD, TIMESTAMP_Y_PAD),
            blurb, fill=TIMESTAMP_COLOR, font=font(TIMESTAMP_FONT_SIZE))
 
     # === Big temp + description ===
@@ -405,7 +434,7 @@ def render_weather():
     precip_im  = load_rgba(os.path.join(ICON_WEATHER_LAYERS, precip_name), size=(HERO_SZ, HERO_SZ)) if precip_name else None
     thunder_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, thunder_name), size=(HERO_SZ, HERO_SZ)) if thunder_name else None
 
-    icon_x, icon_y = 200, 56
+    icon_x, icon_y = 170, 58
     for layer in (base_im, sky_im, precip_im, thunder_im):
         if layer:
             img.paste(layer, (icon_x, icon_y), layer)
@@ -515,15 +544,8 @@ def render_news():
         d.text((16, H-30), datetime.now().strftime("%b %d %I:%M %p"), fill=MUTED, font=font(18))
         return atomic_save(img, "news.png")
 
-    # Layout constants to fit 5 cells comfortably
-    TOP_MARGIN = 6
-    CELL_H = 53
-    GAP = 2
-    L_MARGIN, R_MARGIN = 12, 12
-    PAD = 8
-    ICON_SZ = 24
-    BORDER = 1
-    HEAD_FONT = font(19)  # smaller, denser
+
+    #  HEAD_FONT = font(19)  # smaller, denser
 
     y = 38 + TOP_MARGIN  # below header
 
@@ -593,7 +615,7 @@ def render_news():
     ts_w, ts_h = text_size(d, stamp, font(TIMESTAMP_FONT_SIZE))
 
     x_pos = W - ts_w - TIMESTAMP_X_PAD
-    y_pos = TIMESTAMP_Y                     # top-aligned
+    y_pos = TIMESTAMP_Y_PAD                     # top-aligned
 
     d.text((x_pos, y_pos), stamp,
         fill=TIMESTAMP_COLOR,
