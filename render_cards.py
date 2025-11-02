@@ -11,24 +11,12 @@ CONFIG = load_config()
 OUT = os.path.expanduser("~/pidisplay/images")
 os.makedirs(OUT, exist_ok=True)
 
-# W, H = 480, 320
-# BG = (12, 12, 12)
-# BG_DAY = (55, 175, 255)
-# FG = (235, 235, 235)
-# ACCENT = (0, 100, 255)
-# MUTED = (220,220,220)
-
 BG = tuple(CONFIG["colors"]["bg"])
 FG = tuple(CONFIG["colors"]["fg"])
 BG_DAY = tuple(CONFIG["colors"]["day_bg"])
 ACCENT = tuple(CONFIG["colors"]["accent"])
 MUTED = tuple(CONFIG["colors"]["muted"])
 TIMESTAMP_COLOR = tuple(CONFIG["colors"]["time_stamp"])
-
-# TIMESTAMP_FONT_SIZE = 20          # a little bigger, still fits
-# TIMESTAMP_COLOR     = (200, 200, 200)   # higher contrast
-# TIMESTAMP_X_PAD     = 12
-# TIMESTAMP_Y_PAD     = 12          # distance from TOP edge (not baseline)
 
 # Fonts
 TIMESTAMP_FONT_SIZE = tuple(CONFIG["fonts"]["timestamp_size"])

@@ -3,7 +3,6 @@ from .base import *
 from datetime import datetime, timedelta
 import json
 
-# ----------------- # Weather Card # state/weather.json # ---------------------
 # Weather code mappings (Open-Meteo)
 WCMAP = {
     0:"Clear",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",
@@ -12,83 +11,68 @@ WCMAP = {
     80:"Showers",81:"Showers",82:"Showers",95:"Thunder",96:"Thunder",99:"Thunder"
 }
 
-# Moon phase icon list
-MOON_ICONS = [
-    "moon_new.png",
-    "moon_waxing_crescent.png",
-    "moon_first_quarter.png",
-    "moon_waxing_gibbous.png",
-    "moon_full.png",
-    "moon_waning_gibbous.png",
-    "moon_third_quarter.png",
-    "moon_waning_crescent.png",
-]
-
 def render():
-    # ... [your full weather logic, using BG, DAY_BG, text_size, etc.]
-    # At top:
-    data = json.load(open(os.path.expanduser("~/pidisplay/state/weather.json")))
-    is_day = int(data["now"].get("is_day", 1))
-    img = Image.new("RGB", (W, H), DAY_BG if is_day else BG)
-    # ... rest of your code ...
-       data = load_json(os.path.expanduser("~/pidisplay/state/weather.json"))
-    
-    # === Day / Night background ===
-    is_day = 1  # default fallback
-    if data and "now" in data:
-        is_day = int(data["now"].get("is_day") or 0)
-    bg_color = BG_DAY if is_day else BG
-    img = Image.new("RGB", (W, H), bg_color)
+    cfg = get_config()
+    data = load_json(os.path.expanduser("~/pidisplay/state/weather.json"))
+
+    if not data or "now" not in data:
+        img = Image.new("RGB", (W, H), tuple(cfg["colors"]["bg"]))
+        d = ImageDraw.Draw(img)
+        d.text((16, 60), "No weather data", fill=(255, 120, 120), font=font(32))
+        d.text((16, H-30), "OFFLINE", fill=(255, 120, 120), font=font(18))
+        return atomic_save(img, "weather")
+
+    noww = data["now"]
+    is_day = int(noww.get("is_day", 1))
+    img = Image.new("RGB", (W, H), tuple(cfg["colors"]["day_bg"]) if is_day else tuple(cfg["colors"]["bg"]))
     d = ImageDraw.Draw(img)
 
     # === Header ===
     title = "Weather"
-    if data and data.get("loc", {}).get("city"):
+    if data.get("loc", {}).get("city"):
         title += f" • {data['loc']['city']}"
     draw_header(d, title)
 
-    # === No data fallback ===
-    if not data or "now" not in data:
-        d.text((16, 60), "No weather data", fill=(255, 120, 120), font=font(32))
-        d.text((16, H-30), "OFFLINE", fill=(255, 120, 120), font=font(18))
-        return atomic_save(img, "weather.png")
-
-    noww = data["now"]
-    astro = data.get("astronomy", {}) or {}
+    # === Data ===
     temp = noww.get("temp_f")
-    wc   = noww.get("weathercode")
+    wc = noww.get("weathercode")
     desc = WCMAP.get(int(wc) if wc is not None else -1, "—")
+    astro = data.get("astronomy", {}) or {}
 
-    # === Sunrise / Sunset blurb (top-right, under header) ===
+    # === Sunrise / Sunset blurb ===
     sunset_str = _fmt_clock(astro.get("sunset"))
     sunrise_next_str = _fmt_clock(astro.get("sunrise_next") or astro.get("sunrise"))
     blurb = f"Sunset {sunset_str}" if is_day else f"Sunrise {sunrise_next_str}"
 
-    bw, _ = text_size(d, blurb, font(TIMESTAMP_FONT_SIZE))
-    d.text((W - bw - TIMESTAMP_X_PAD, TIMESTAMP_Y_PAD),
-           blurb, fill=TIMESTAMP_COLOR, font=font(TIMESTAMP_FONT_SIZE))
+    font_size = cfg["fonts"]["timestamp_size"]
+    x_pad = cfg["padding"]["timestamp_x"]
+    y_pos = cfg["padding"]["timestamp_y"]
+    color = tuple(cfg["colors"]["time_stamp"])
+    bw, _ = text_size(d, blurb, font_size)
+    d.text((W - bw - x_pad, y_pos), blurb, fill=color, font=font(font_size))
 
     # === Big temp + description ===
     main = f"{int(round(temp))}°F" if isinstance(temp, (int, float)) else "—°"
-    d.text((16, 60), main, fill=FG, font=font(56))
-    d.text((16, 126), desc, fill=(180, 220, 255), font=font(26))
+    d.text((16, 60), main, fill=tuple(cfg["colors"]["fg"]), font=font(cfg["fonts"]["big_temp_size"]))
+    d.text((16, 126), desc, fill=(180, 220, 255), font=font(cfg["fonts"]["weather_desc_size"]))
 
     # === Hero icon ===
     base_name = "sun.png" if is_day else pick_moon_icon(astro.get("moon_phase"))
-    base_im = load_rgba(os.path.join(ICON_WEATHER_BASE, base_name), size=(HERO_SZ, HERO_SZ))
+    base_im = load_rgba(os.path.join(ICON_WEATHER_BASE, base_name), size=cfg["padding"]["hero_sz"])
 
     sky_name, precip_name, thunder_name = wc_to_layers(int(wc) if wc is not None else -1)
-    sky_im     = load_rgba(os.path.join(ICON_WEATHER_LAYERS, sky_name), size=(HERO_SZ, HERO_SZ)) if sky_name else None
-    precip_im  = load_rgba(os.path.join(ICON_WEATHER_LAYERS, precip_name), size=(HERO_SZ, HERO_SZ)) if precip_name else None
-    thunder_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, thunder_name), size=(HERO_SZ, HERO_SZ)) if thunder_name else None
+    sky_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, sky_name), size=cfg["padding"]["hero_sz"]) if sky_name else None
+    precip_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, precip_name), size=cfg["padding"]["hero_sz"]) if precip_name else None
+    thunder_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, thunder_name), size=cfg["padding"]["hero_sz"]) if thunder_name else None
 
-    icon_x, icon_y = 170, 58
+    icon_x = cfg["padding"]["hero_x"]
+    icon_y = cfg["padding"]["hero_y"]
     for layer in (base_im, sky_im, precip_im, thunder_im):
         if layer:
             img.paste(layer, (icon_x, icon_y), layer)
 
-    # === Hourly strip (6 columns) ===
-    d.text((16, 180 - 24), "Coming Up", fill=ACCENT, font=font(18))
+    # === Hourly strip ===
+    d.text((16, cfg["padding"]["coming_up_y"]), "Coming Up", fill=tuple(cfg["colors"]["accent"]), font=font(cfg["fonts"]["weather_coming_up_size"]))
 
     hourly_list = data.get("hourly", []) or []
     hour_map = {h.get("time"): h for h in hourly_list}
@@ -107,7 +91,6 @@ def render():
         keys.append(t.strftime("%Y-%m-%dT%H:00"))
         t += timedelta(hours=1)
 
-    # ← ONLY ONE LOOP
     x = 16
     for lbl, key in zip(labels, keys):
         h = hour_map.get(key, {}) or {}
@@ -115,34 +98,32 @@ def render():
         pp = h.get("pop")
         hwc = h.get("weathercode")
 
-        # Fixed positions
-        d.text((x, HOURLY_Y + TIME_DY), lbl, fill=MUTED, font=font(16))
-        d.text((x, HOURLY_Y + TEMP_DY),
+        d.text((x, cfg["padding"]["hourly_y"] + cfg["padding"]["time_dy"]), lbl, fill=tuple(cfg["colors"]["muted"]), font=font(cfg["fonts"]["weather_hourly_time_size"]))
+        d.text((x, cfg["padding"]["hourly_y"] + cfg["padding"]["temp_dy"]),
                f"{int(round(tf))}°" if isinstance(tf, (int, float)) else "—°",
-               fill=FG, font=font(20))
+               fill=tuple(cfg["colors"]["fg"]), font=font(cfg["fonts"]["weather_hourly_temp_size"]))
 
-        # Tiny icon
         tiny_name = wc_to_tiny_layer(int(hwc) if hwc is not None else -1)
         if tiny_name:
             tiny_im = load_rgba(os.path.join(ICON_WEATHER_TINY, tiny_name),
-                                size=(ICON_SZ_TINY, ICON_SZ_TINY))
+                                size=cfg["padding"]["icon_sz_tiny"])
             if tiny_im:
-                img.paste(tiny_im, (x + ICON_DX, HOURLY_Y + ICON_DY), tiny_im)
+                img.paste(tiny_im, (x + cfg["padding"]["icon_dx"], cfg["padding"]["hourly_y"] + cfg["padding"]["icon_dy"]), tiny_im)
 
-        # Precip %
         pop_txt = f"{int(pp)}%" if isinstance(pp, (int, float)) else "—"
         pop_fill = (140, 200, 255) if isinstance(pp, (int, float)) else (100, 120, 140)
-        d.text((x, HOURLY_Y + POP_DY), pop_txt, fill=pop_fill, font=font(14))
+        d.text((x, cfg["padding"]["hourly_y"] + cfg["padding"]["pop_dy"]), pop_txt, fill=pop_fill, font=font(cfg["fonts"]["weather_hourly_pop_size"]))
 
-        x += HOURLY_COL_W
+        x += cfg["padding"]["hourly_col_w"]
         if x > W - 64:
             break
 
-    # === Footer: Updated / STALE ===
+    # === Footer ===
     stale = is_stale(data.get("updated", ""), max_age_sec=1800)
     footer = "STALE" if stale else "Updated"
     footer_text = f"{footer} {datetime.now().strftime('%b %d %I:%M %p')}"
-    fw, _ = text_size(d, footer_text, font(18))
-    d.text((16, H - 30), footer_text, fill=MUTED, font=font(18))
-    
+
+    fw, _ = text_size(d, footer_text, cfg["fonts"]["footer_size"])
+    d.text((16, H - 30), footer_text, fill=tuple(cfg["colors"]["muted"]), font=font(cfg["fonts"]["footer_size"]))
+
     return atomic_save(img, "weather")

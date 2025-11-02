@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # display_slideshow.py
 
+from config import load as load_config
+import subprocess
 import watchdog.events, watchdog.observers
 import os, glob, time, logging, struct
 import subprocess
@@ -48,7 +50,8 @@ def main():
             logging.warning("No .raw files – sleeping")
             time.sleep(INTERVAL)
             continue
-
+        if config_changed:
+            subprocess.run(["python", "/home/pi/pidisplay/render.py"])
         for p in raw_files:
             blit(p)
             time.sleep(INTERVAL)

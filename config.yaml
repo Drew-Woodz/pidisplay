@@ -21,34 +21,52 @@ colors:
   bg: [12, 12, 12]
   fg: [235, 235, 235]
   accent: [0, 100, 255]
-  muted: [220,220,220]
+  muted: [220, 220, 220]
   day_bg: [55, 175, 255]
   time_stamp: [200, 200, 200]
 
 fonts:
   timestamp_size: 20
   header_size: 19
+  footer_size: 18
   big_temp_size: 56
+  clock_time_size: 92
+  clock_date_size: 36
+  btc_price_size: 72
+  btc_change_size: 32
+  weather_desc_size: 26
+  weather_coming_up_size: 18
+  weather_hourly_time_size: 16
+  weather_hourly_temp_size: 20
+  weather_hourly_pop_size: 14
+  news_title_size: 19
+  news_badge_size: 14
 
 padding:
   timestamp_x: 12
   timestamp_y: 12
 
-  hourly_col_w: 72       # column width
-  hourly_y: 180      # top of the hourly block ("Coming Up" sits at Y-24)
-  time_dy: 0        # y-offset for the time label relative to HOURLY_Y
-  temp_dy: 18       # y-offset for the temperature
-  pop_dy: 38       # y-offset for precip %
-  icon_sz_tiny: 20       # 20x20 tiny weather icon
-  icon_dx: 36       # icon x offset from the column anchor (x)
-  icon_dy: 16       # icon y offset from HOURLY_Y (place near the temp line)
+  # Weather card
+  hourly_y: 180
+  hourly_col_w: 72
+  time_dy: 0
+  temp_dy: 18
+  pop_dy: 38
+  icon_dx: 36
+  icon_dy: 16
+  icon_sz_tiny: 20
+  hero_sz: 100
+  hero_x: 170
+  hero_y: 58
+  coming_up_y: 156
+  footer_y: 290
 
-  # News Card - Layout constants to fit 5 cells comfortably
-  top_margin: 6
-  cell_h: 53
-  gap: 2
-  l_margin: 12
-  r_margin: 12
-  pad: 8
-  icon_sz: 24
-  border: 1
+  # News card
+  news_top_margin: 6
+  news_cell_h: 53
+  news_gap: 2
+  news_l_margin: 12
+  news_r_margin: 12
+  news_pad: 8
+  news_icon_sz: 24
+  news_border: 1
