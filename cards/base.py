@@ -82,6 +82,11 @@ def pick_moon_icon(phase):
 
 def wc_to_layers(code: int):
     """Return (sky_layer, precip_layer, thunder_layer) filenames"""
+    try:
+        code = int(code)
+    except:
+        code = -1
+      
     sky = precip = thunder = None
     if code in (1,):
         sky = "few_clouds.png"
