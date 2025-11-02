@@ -9,10 +9,10 @@ def main():
     args = parser.parse_args()
 
     cards = {
-        "clock": clock.render,
-        "weather": weather.render,
-        "btc": btc.render,
-        "news": news.render,
+        "clock": clock,
+        "weather": weather,
+        "btc": btc,
+        "news": news,
     }
 
     to_render = args.only or cards.keys()
