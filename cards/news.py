@@ -17,7 +17,7 @@ def render():
     if not data or "clusters" not in data:
         d.text((16, 60), "No news data", fill=(255, 120, 120), font=font(32))
         d.text((16, H-30), "OFFLINE", fill=(255, 120, 120), font=font(18))
-        return atomic_save(img, "news.png")
+        return atomic_save(img, "news")
 
     clusters = data["clusters"]
 
@@ -75,4 +75,4 @@ def render():
         if y > H - 40:
             break
 
-    return atomic_save(img, "news.raw")
+    return atomic_save(img, "news")
