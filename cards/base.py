@@ -11,6 +11,10 @@ W, H = 480, 320
 OUT = os.path.expanduser("~/pidisplay/images")
 ICON_DIR = os.path.expanduser("~/pidisplay/icons")
 
+ICON_WEATHER_BASE   = os.path.join(ICON_DIR, "weather_base")
+ICON_WEATHER_LAYERS = os.path.join(ICON_DIR, "weather_layers")
+ICON_WEATHER_TINY   = os.path.join(ICON_DIR, "weather_tiny")
+
 # ----------------------------------------------------------------------
 # LAZY CONFIG
 # ----------------------------------------------------------------------
@@ -47,7 +51,7 @@ def draw_header(d, title):
     d.rectangle([0, 0, W, 38], fill=BG)
     d.text((12, 8), title, fill=FG, font=font(sz))
 
-def _fmt_clock(time_str):
+def fmt_clock(time_str):
     if not time_str:
         return ""
     try:

@@ -39,9 +39,9 @@ def render():
     desc = WCMAP.get(int(wc) if wc is not None else -1, "—")
     astro = data.get("astronomy", {}) or {}
 
-    # === Sunrise / Sunset blurb ===
-    sunset_str = _fmt_clock(astro.get("sunset"))
-    sunrise_next_str = _fmt_clock(astro.get("sunrise_next") or astro.get("sunrise"))
+    # === Sunrise / Sunset blurb — MOVED INSIDE render() ===
+    sunset_str = fmt_clock(astro.get("sunset"))
+    sunrise_next_str = fmt_clock(astro.get("sunrise_next") or astro.get("sunrise"))
     blurb = f"Sunset {sunset_str}" if is_day else f"Sunrise {sunrise_next_str}"
 
     font_size = cfg["fonts"]["timestamp_size"]
