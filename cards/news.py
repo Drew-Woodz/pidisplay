@@ -24,8 +24,12 @@ def render():
     # === Top-right timestamp ===
     stamp = datetime.now().strftime("%b %d %I:%M %p")
     sw, _ = text_size(d, stamp, TIMESTAMP_FONT_SIZE)
-    d.text((W - sw - TIMESTAMP_X_PAD, TIMESTAMP_Y),
-           stamp, fill=TIMESTAMP_COLOR, font=font(TIMESTAMP_FONT_SIZE))
+    d.text(
+        (W - sw - cfg["padding"]["timestamp_x"], cfg["padding"]["timestamp_y"]),
+        stamp,
+        fill=tuple(cfg["colors"]["time_stamp"]),
+        font=font(cfg["fonts"]["timestamp_size"])
+    )
 
     y = 38 + 6  # below header
     for cluster in clusters:
@@ -71,4 +75,4 @@ def render():
         if y > H - 40:
             break
 
-    return atomic_save(img, "news.png")
+    return atomic_save(img, "news.raw")
