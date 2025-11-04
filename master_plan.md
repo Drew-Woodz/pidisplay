@@ -174,3 +174,15 @@
 * The markets/crypto system unification ensures shared code for polling, caching, and rendering.
 * Clock projection features are now separate milestones because they touch multiple render paths.
 * Games, sports, and extra integrations live at the end to keep the base system tight first.
+
+--- 
+
+## Appendix: Post-Log Updates from Troubleshooting
+
+* Black screen root causes: Permission denied on /dev/tty1 for fbi under pi user; fixed with CAP_SYS_TTY_CONFIG and TTY resets in service.  
+* Blitter vs fbi: Blitter preferred for flicker-free but reverted to fbi with A/B symlinks during security tweaks (see run_slideshow.sh).  
+* Config-driven order/live reload: Implemented in config.py; watcher in display_slideshow.py (experimental, optional).  
+* Day/night weather: Added in weather.py with day_bg color from config.  
+* Timestamp consistency: Unified across cards in base.py.  
+
+Cross-reference master_plan.md for next checkboxes (e.g., input framework, dirty rectangle blitter).
