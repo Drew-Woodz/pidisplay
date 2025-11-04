@@ -2,6 +2,44 @@
 from .base import *
 import json
 from datetime import datetime
+import re
+import hashlib
+
+def _norm_key(t):
+    return re.sub(r"[^a-z0-9 ]+", " ", (t or "").lower())
+
+def _similar(a: str, b: str, thresh=0.85):
+    ta = set(_norm_key(a).split())
+    tb = set(_norm_key(b).split())
+    if not ta or not tb: return False
+    j = len(ta & tb) / len(ta | tb)
+    return j >= thresh
+
+def cluster_news(items, top_n=5):
+    groups = []
+    for it in sorted(items, key=lambda x: x.get("ts",""), reverse=True):
+        placed = False
+        for g in groups:
+            if _similar(it.get("title",""), g[0].get("title","")):
+                g.append(it); placed = True; break
+        if not placed:
+            groups.append([it])
+
+    reps = []
+    for g in groups:
+        rep = max(g, key=lambda it: it.get("ts",""))
+        rep = dict(rep)
+        rep["count"] = len(g)
+        reps.append(rep)
+    reps.sort(key=lambda it: it.get("ts",""), reverse=True)
+    return reps[:top_n]
+
+def older_than_24h(ts):
+    try:
+        t = datetime.fromisoformat(ts.replace("Z","+00:00"))
+        return (datetime.now(timezone.utc) - t).total_seconds() > 24*3600
+    except:
+        return True
 
 def render():
     cfg = get_config()
@@ -14,22 +52,20 @@ def render():
         title += f" • {data['loc']['city']}"
     draw_header(d, title)
 
-    if not data or "clusters" not in data:
+    items = data.get("items", []) or []
+    items = [it for it in items if not older_than_24h(it.get("ts", ""))]
+    clusters = cluster_news(items, top_n=5) if items else []
+
+    if not clusters:
         d.text((16, 60), "No news data", fill=(255, 120, 120), font=font(32))
         d.text((16, H-30), "OFFLINE", fill=(255, 120, 120), font=font(18))
         return atomic_save(img, "news")
 
-    clusters = data["clusters"]
-
     # === Top-right timestamp ===
     stamp = datetime.now().strftime("%b %d %I:%M %p")
-    sw, _ = text_size(d, stamp, TIMESTAMP_FONT_SIZE)
-    d.text(
-        (W - sw - cfg["padding"]["timestamp_x"], cfg["padding"]["timestamp_y"]),
-        stamp,
-        fill=tuple(cfg["colors"]["time_stamp"]),
-        font=font(cfg["fonts"]["timestamp_size"])
-    )
+    sw, _ = text_size(d, stamp, cfg["fonts"]["timestamp_size"])
+    d.text((W - sw - cfg["padding"]["timestamp_x"], cfg["padding"]["timestamp_y"]),
+           stamp, fill=tuple(cfg["colors"]["time_stamp"]), font=font(cfg["fonts"]["timestamp_size"]))
 
     y = 38 + 6  # below header
     for cluster in clusters:

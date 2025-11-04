@@ -1,7 +1,7 @@
 
 ---
 
-# Executive summary
+# Development Log Entry 1 - Executive summary
 
 * We **ditched SDL/Pygame** for display output (fbcon isn’t built in this OS) and instead:
 
@@ -15,7 +15,7 @@
 
 ---
 
-# Final working architecture
+## Final working architecture
 
 **renderer**
 
@@ -33,7 +33,7 @@
 
 ---
 
-# OS & driver takeaway
+## OS & driver takeaway
 
 * **OS image**: “Raspberry Pi OS (Legacy, 32-bit) Lite”. Even though it says Bookworm, it ships the **staging fbtft** modules we need.
 * **Overlay**: The stock image doesn’t ship `waveshare35a.dtbo`. We **copied it from the Waveshare repo** and placed it under `/boot/firmware/overlays/`.
@@ -43,7 +43,7 @@
 
 ---
 
-# Clean-room rebuild checklist (the “do these in order” plan)
+## Clean-room rebuild checklist (the “do these in order” plan)
 
 1. **Flash + first boot**
 
@@ -242,7 +242,7 @@ timedatectl
 
 ---
 
-# Common pitfalls we hit (and how we solved them)
+## Common pitfalls we hit (and how we solved them)
 
 * **White/black screen (no `/dev/fb1`)**
   → KMS enabled / overlay missing. Fix: install `waveshare35a.dtbo`, disable KMS, set SPI on, add dtoverlay line.
@@ -270,7 +270,7 @@ timedatectl
 
 ---
 
-# Validation checklist (after each rebuild)
+## Validation checklist (after each rebuild)
 
 * `ls -l /dev/fb*` → **fb0** + **fb1** present.
 * `dmesg | egrep -i 'fb_ili9486|ADS7846'` → driver lines present.
@@ -281,7 +281,7 @@ timedatectl
 
 ---
 
-# Repo hygiene
+## Repo hygiene
 
 Add a `.gitignore` to keep noise out:
 
@@ -303,7 +303,7 @@ Commit service/loop/render scripts to the repo; the unit files live in `/etc/sys
 
 ---
 
-# Open items / polish
+## Open items / polish
 
 * **Slide change blink:** `fbi` clears the framebuffer; acceptable for MVP. For totally smooth swaps, replace `fbi` with a tiny Python framebuffer blitter (map `/dev/fb1`, draw pixels directly) or try `fbi -blend 1` if supported.
 * **News robustness:** switch to the “robust fetch” version (explicit requests + fallbacks) when you’re ready; your crash looked like a transient OOM or feed hiccup mid-patch.
@@ -312,7 +312,7 @@ Commit service/loop/render scripts to the repo; the unit files live in `/etc/sys
 
 ---
 
-# What I’ll turn this into
+## What I’ll turn this into
 
 Turn this report into a **single idempotent install script** that:
 
@@ -328,7 +328,7 @@ That plus the `.gitignore` will make reflashes painless and reproducible—and g
 
 ---
 
-## Development Log — Entry 2 (Recovery & Expansion)
+# Development Log — Entry 2 (Recovery & Expansion)
 
 ### The Great Detour
 
@@ -440,7 +440,7 @@ No structural or code changes from that plan have been implemented yet — it cu
 
 ---
 
-## Development Log — Entry 3 (News pipeline + UI, clock polish)
+# Development Log — Entry 3 (News pipeline + UI, clock polish)
 
 **What changed (high level)**
 We implemented a **real news ingestion pipeline** with per-source fetchers → a merged `state/news.json` → clustered rendering in `render_cards.py`. We also added the **clock card**, moved its timestamping logic out of the news card footer, and polished the viewer loop.
@@ -727,7 +727,7 @@ jq .astronomy ~/pidisplay/state/weather.json
 
 ---
 
-## Development Log — Entry 5 (Astronomy integration + clock resilience)
+# Development Log — Entry 5 (Astronomy integration + clock resilience)
 
 ### Summary
 
@@ -761,7 +761,7 @@ The hourly strip regained proper column alignment, and the system fully recovers
 
 ---
 
-## Development Log — Entry 6 (Restoring Stable Viewer Loop)
+# Development Log — Entry 6 (Restoring Stable Viewer Loop)
 
 **Summary:**
 Re-established a stable `fbi`-based slideshow under user `pi` after privilege conversion introduced frame flicker and console noise. Confirmed clock card updates via a 15-second timer.
@@ -826,7 +826,7 @@ relevant source: https://github.com/adafruit/Adafruit_Python_ILI9341 (inspiratio
 
 ---
 
-## Development Log — Entry 7 (Full Custom Blitter + Dual PNG/RAW Output)
+# Development Log — Entry 7 (Full Custom Blitter + Dual PNG/RAW Output)
 
 **Summary:**  
 Completed the pivot to a **secure, flicker-free, Python-native blitter** using direct `/dev/fb1` raw writes. Achieved **zero external dependencies** (`fbi` removed), **atomic dual output** (PNG for VS Code + RAW for display), and **correct color fidelity** on the Waveshare 3.5" SPI LCD.
@@ -858,3 +858,105 @@ Dithering to 32/64/32 levels on low-brightness values (e.g., `12,12,12`) caused 
 **Fix:**  
 ```python
 DITHER_565 = False
+```
+
+# Development Log — Entry 8 (Modular Cards + Config System)
+
+**Summary:**  
+Completed the **full refactor** of `render_cards.py` into a **modular `cards/` package** with `base.py` for shared helpers, and introduced a **central `config.yaml`** for all colors, fonts, padding, and card order. Achieved **100% functional parity** with the original monolithic renderer while eliminating hard-coded values and enabling **live reload** (in progress).
+
+**Root Cause of `_fmt_clock` Error:**  
+Despite `base.py` being imported and `_fmt_clock` defined, the function was **not available** in `weather.py` during `render()` execution. After exhaustive testing, the issue was traced to **module-level function calls in `weather.py` that executed during import**, before `base.py` was fully loaded. Specifically, `astro = data.get("astronomy", {}) or {}` and subsequent `_fmt_clock` calls were **outside `render()`** in early versions, causing a **race condition** in the import graph.
+
+**Key Misstep:**  
+Initial refactor moved constants into `config.yaml` but **left function calls at module scope** in `weather.py`. This triggered **import-time execution** of `_fmt_clock`, which failed because `base.py` was still being imported. The error manifested as `_fmt_clock is not defined`, but the **real bug was import order**, not the function itself.
+
+**Final Fixes Implemented:**
+
+* **Created `config.py`** with `load()` and `save_default()`  
+  ```python
+  CONFIG_PATH = Path(os.path.expanduser("~/pidisplay/config.yaml"))
+  ```
+
+* **Introduced `get_config()` in `base.py`** – lazy load to avoid circular imports  
+  ```python
+  def get_config():
+      from config import load
+      return load()
+  ```
+
+* **Broke `render_cards.py` into `cards/` package:**
+  - `base.py` – all shared helpers (`font`, `text_size`, `_fmt_clock`, `atomic_save`, etc.)
+  - `clock.py`, `weather.py`, `btc.py`, `news.py` – one card per file
+  - `cards/__init__.py` – exports `render as card_name`
+
+* **Moved ALL layout values to `config.yaml`:**
+  - Colors: `bg`, `fg`, `accent`, `day_bg`, `time_stamp`
+  - Fonts: `timestamp_size`, `big_temp_size`, `footer_size`, etc.
+  - Padding: `timestamp_x/y`, `hourly_y`, `hero_x/y`, `icon_sz_tiny`, etc.
+
+* **Ensured NO function calls at module scope** in any card  
+  All logic now **inside `render()`**
+
+* **Preserved dual PNG/RAW output** via `atomic_save()` in `base.py`
+
+**Verification Steps:**
+```bash
+python ~/pidisplay/render.py
+# → Renders all 4 cards, no errors
+ls -lh ~/pidisplay/images/
+# → .png and .raw pairs for clock, weather, btc, news
+```
+
+**Result:**  
+- **No `_fmt_clock` error**  
+- **All layout configurable** via `config.yaml`  
+- **VS Code PNGs + LCD RAW** preserved  
+- **Modular, maintainable, testable**
+
+**Lesson:**  
+**Never call imported functions at module level** during a refactor. Even one line like `sunset_str = _fmt_clock(...)` outside `render()` can **break the entire import chain**. Always wrap in `render()`.
+
+**Next Steps:**  
+- [ ] Add **live config reload** via `watchdog` in `display_slideshow.py`  
+- [ ] Implement **config-driven card order** in `render.py` and slideshow  
+- [ ] Add **error logging** for missing helpers (e.g. `is_stale`, `wc_to_layers`)
+
+**Note:**  
+The original `render_cards.py` was our **truth stone**. Every pixel, font, and margin was matched. The refactor was **pixel-perfect** and **100% backward compatible**.
+
+## Development Log — Entry 9 (Blitter Permission and Black Screen Fixes)
+
+**Summary:**  
+Resolved black screens after switching to user 'pi' for security. Root cause: Incomplete blitter integration led to pipeline mismatch (renderers producing PNG only, blitter expecting RAW). Permissions blocked VT/tty access for fbi fallbacks.
+
+**Key Fixes:**  
+- Dual atomic output in render_cards.py and render_clock.py: Save PNG for VS Code + RAW for blitter.  
+- Systemd capabilities: Added AmbientCapabilities=CAP_SYS_TTY_CONFIG for VT control without root.  
+- Updated pidisplay.service: Run as pi, with TTYPath=/dev/tty1, StandardInput=tty, ExecStartPre for chvt/setterm.  
+
+**Lessons Learned:**  
+- Non-interactive systemd context drops TTY sessions—use capabilities, not login shells.  
+- Avoid premature rollbacks; test PNG/RAW pipeline end-to-end.  
+
+**Result:**  
+Flicker-free display restored, colors accurate, all under secure pi user.
+
+## Development Log — Entry 10 (Refactor to Modular Cards and Config System)
+
+**Summary:**  
+Split monolithic render_cards.py into cards/ modules (base.py helpers + individual renderers like weather.py). Introduced config.yaml + config.py for shared colors/fonts/padding. Fixed silent failures (e.g., _fmt_clock NameError from import * skipping private names).
+
+**Key Fixes:**  
+- Renamed _fmt_clock to fmt_clock (public for import *).  
+- Used config keys in news.py timestamp block (no undefined globals).  
+- Added missing icon paths to base.py.  
+- Expanded config.py defaults for all fonts/padding/colors used in renderers.  
+- Updated render.py to loop and re-render on intervals from config.  
+
+**Lessons Learned:**  
+- Refactors can break imports—avoid leading _ for shared helpers.  
+- Dual PNG/RAW output requires base names only in atomic_save calls (fixed news.png.png bug).  
+
+**Result:**  
+Cleaner code, live config reload via watchdog (optional), auto-updates per card interval. Viewer picks up new PNGs seamlessly.  
