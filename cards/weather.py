@@ -58,12 +58,12 @@ def render():
 
     # === Hero icon ===
     base_name = "sun.png" if is_day else pick_moon_icon(astro.get("moon_phase"))
-    base_im = load_rgba(os.path.join(ICON_WEATHER_BASE, base_name), size=cfg["padding"]["hero_sz"])
-
     sky_name, precip_name, thunder_name = wc_to_layers(int(wc) if wc is not None else -1)
-    sky_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, sky_name), size=cfg["padding"]["hero_sz"]) if sky_name else None
-    precip_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, precip_name), size=cfg["padding"]["hero_sz"]) if precip_name else None
-    thunder_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, thunder_name), size=cfg["padding"]["hero_sz"]) if thunder_name else None
+    sz = cfg["padding"]["hero_sz"]
+    base_im = load_rgba(os.path.join(ICON_WEATHER_BASE, base_name), size=(sz, sz))
+    sky_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, sky_name), size=(sz, sz)) if sky_name else None
+    precip_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, precip_name), size=(sz, sz)) if precip_name else None
+    thunder_im = load_rgba(os.path.join(ICON_WEATHER_LAYERS, thunder_name), size=(sz, sz)) if thunder_name else None
 
     icon_x = cfg["padding"]["hero_x"]
     icon_y = cfg["padding"]["hero_y"]
@@ -80,6 +80,7 @@ def render():
     now = datetime.now()
     start = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
 
+    tiny_sz = cfg["padding"]["icon_sz_tiny"]
     labels, keys = [], []
     t = start
     for _ in range(6):
@@ -106,7 +107,7 @@ def render():
         tiny_name = wc_to_tiny_layer(int(hwc) if hwc is not None else -1)
         if tiny_name:
             tiny_im = load_rgba(os.path.join(ICON_WEATHER_TINY, tiny_name),
-                                size=cfg["padding"]["icon_sz_tiny"])
+                                size=(tiny_sz, tiny_sz))
             if tiny_im:
                 img.paste(tiny_im, (x + cfg["padding"]["icon_dx"], cfg["padding"]["hourly_y"] + cfg["padding"]["icon_dy"]), tiny_im)
 

@@ -1,7 +1,7 @@
 # ~/pidisplay/cards/news.py
 from .base import *
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 import hashlib
 

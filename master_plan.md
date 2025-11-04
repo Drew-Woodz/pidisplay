@@ -177,12 +177,21 @@
 
 --- 
 
-## Appendix: Post-Log Updates from Troubleshooting
+## Appendix I: Post-Log Updates from Troubleshooting
 
 * Black screen root causes: Permission denied on /dev/tty1 for fbi under pi user; fixed with CAP_SYS_TTY_CONFIG and TTY resets in service.  
 * Blitter vs fbi: Blitter preferred for flicker-free but reverted to fbi with A/B symlinks during security tweaks (see run_slideshow.sh).  
 * Config-driven order/live reload: Implemented in config.py; watcher in display_slideshow.py (experimental, optional).  
 * Day/night weather: Added in weather.py with day_bg color from config.  
 * Timestamp consistency: Unified across cards in base.py.  
+
+## Appendix II: Post-Log Updates from Troubleshooting  
+
+* Refactor to cards/ package: Completed modular split with config.yaml; all renderers functional. Paths updated in base.py for icons.  
+* Icon loading: Added caching and fallbacks in base.py; verified weather hero/tinies and news sources.  
+* Clustering fixes: Timezone import and 24h filter resolved in news.py.  
+* Debug aids: Temporary prints for load_rgba to catch silent failures.  
+
+- Cross-reference develop.md Entry 11 for refactor details.
 
 Cross-reference master_plan.md for next checkboxes (e.g., input framework, dirty rectangle blitter).

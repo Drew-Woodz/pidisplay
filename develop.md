@@ -844,7 +844,7 @@ Early blitter prototype **removed PNG output** to "simplify", producing only `.r
   # PNG for VS Code + RAW for blitter
   atomic_save() → btc.png + btc.raw
 
-## Development Log — Entry 8 (Dithering Disabled – Color Accuracy)
+# Development Log — Entry 8 (Dithering Disabled – Color Accuracy)
 
 **Summary:**  
 Disabled **ordered Bayer dithering** after `test_colors_2.py` revealed **severe color distortion** in dark and mid-tone ranges. Primary colors were correct, confirming **RGB565 byte order**, but greys and dark headers were **green-tinted, purple, or black**.
@@ -860,7 +860,7 @@ Dithering to 32/64/32 levels on low-brightness values (e.g., `12,12,12`) caused 
 DITHER_565 = False
 ```
 
-# Development Log — Entry 8 (Modular Cards + Config System)
+## Development Log — Entry 8 (Modular Cards + Config System)
 
 **Summary:**  
 Completed the **full refactor** of `render_cards.py` into a **modular `cards/` package** with `base.py` for shared helpers, and introduced a **central `config.yaml`** for all colors, fonts, padding, and card order. Achieved **100% functional parity** with the original monolithic renderer while eliminating hard-coded values and enabling **live reload** (in progress).
@@ -925,7 +925,7 @@ ls -lh ~/pidisplay/images/
 **Note:**  
 The original `render_cards.py` was our **truth stone**. Every pixel, font, and margin was matched. The refactor was **pixel-perfect** and **100% backward compatible**.
 
-## Development Log — Entry 9 (Blitter Permission and Black Screen Fixes)
+# Development Log — Entry 9 (Blitter Permission and Black Screen Fixes)
 
 **Summary:**  
 Resolved black screens after switching to user 'pi' for security. Root cause: Incomplete blitter integration led to pipeline mismatch (renderers producing PNG only, blitter expecting RAW). Permissions blocked VT/tty access for fbi fallbacks.
@@ -942,7 +942,7 @@ Resolved black screens after switching to user 'pi' for security. Root cause: In
 **Result:**  
 Flicker-free display restored, colors accurate, all under secure pi user.
 
-## Development Log — Entry 10 (Refactor to Modular Cards and Config System)
+# Development Log — Entry 10 (Refactor to Modular Cards and Config System)
 
 **Summary:**  
 Split monolithic render_cards.py into cards/ modules (base.py helpers + individual renderers like weather.py). Introduced config.yaml + config.py for shared colors/fonts/padding. Fixed silent failures (e.g., _fmt_clock NameError from import * skipping private names).
@@ -960,3 +960,37 @@ Split monolithic render_cards.py into cards/ modules (base.py helpers + individu
 
 **Result:**  
 Cleaner code, live config reload via watchdog (optional), auto-updates per card interval. Viewer picks up new PNGs seamlessly.  
+
+# Development Log — Entry 11 (Refactor Wrap-Up: Rendering Fixes and Icon Restoration)
+
+**Summary:**  
+
+Finalized the modular refactor of render_cards.py into the cards/ package, resolving lingering issues with news clustering/filtering, weather icons, and source-specific styling. Key challenges included silent failures in icon loading (due to path mismatches and tuple vs. int sizing), missing imports causing filtered-out data, and incomplete style mappings post-refactor. Solutions focused on debug prints for visibility, config-driven paths/sizes, and reintegrating pre-refactor helpers like SOURCE_STYLES without altering core architecture.
+
+**Key Fixes:**  
+
+- Added timezone import to news.py to prevent broad except blocks in older_than_24h() from discarding all items, restoring populated headlines.  
+- Switched font.point_size to font.size in base.py's wrap_text_px for Pillow compatibility, fixing news render crashes.  
+- Converted size args in weather.py's load_rgba calls to tuples (e.g., (sz, sz)) to match Pillow.resize expectations, enabling hero and tiny icons.  
+- Integrated SOURCE_STYLES dictionary and cached load_icon with fallback from deprecated render_cards.py into base.py, restoring per-source icons and tints on news cells.  
+- Updated ICON_WEATHER_* paths in base.py to match actual directory structure (e.g., weather/base instead of weather_base), fixing "No such file" errors for moon/sun icons.  
+
+**Lessons Learned:**  
+
+- Silent failures in try/except (e.g., load_rgba returning None) can cascade—always add targeted debug prints during troubleshooting to confirm file existence and exceptions.  
+- Refactors must preserve not just logic but also implicit assumptions like directory layouts; verify with ls -lR early.  
+- Config-driven values (e.g., hero_sz) are powerful but require explicit type handling (int to tuple) to avoid runtime mismatches.  
+
+**Result:**  
+
+All cards (clock, weather, btc, news) now render fully with timestamps, icons, and dynamic elements intact—pixel-perfect to pre-refactor baseline. Weather hero (e.g., waning crescent moon) and news source icons confirmed visible; clustering and 24h filtering operational. System stable under pidisplay.service.
+
+**Next Steps:**  
+
+- [ ] Proceed to "Renderer daemon split" per master_plan.md: Implement continuous process for rotation/touch.  
+- [ ] Add config system live reload with file-watch.  
+- [ ] Verify input framework milestones; request touch event logs if needed for testing.  
+
+**Note:**  
+
+No new systems introduced; all fixes aligned with existing Pillow-based PNG/RAW pipeline and modular cards structure.
