@@ -2,6 +2,35 @@
 
 > Summarized highlights from the active development log (`develop.md`).
 
+## [v0.5.0] - 2025-11-03
+
+### Added
+
+- Modular cards package (cards/) with individual renderers (weather.py, news.py, btc.py, clock.py) and shared base.py helpers.  
+- Config-driven layout via config.yaml: Colors, fonts, padding for all cards (e.g., hero_sz, icon_sz_tiny).  
+- SOURCE_STYLES dictionary in base.py for per-news-source icons, tints, and borders (e.g., fox.png, breitbart.png).  
+- Cached load_icon in base.py with fallback rectangle for missing icons.  
+
+### Fixed
+
+- Missing timezone import in news.py, preventing 24h filter from discarding all items.  
+- Font attribute mismatch (point_size → size) in base.py wrap_text_px, resolving news render errors.  
+- Icon load failures in weather.py: Converted size args to tuples for Pillow.resize.  
+- Path mismatches for weather icons in base.py (e.g., weather/base → ICON_WEATHER_BASE), restoring hero and tiny icons.  
+- Silent None returns in load_rgba via debug prints for troubleshooting.  
+
+### Improved
+
+- Refactor preserved dual PNG/RAW output and atomic saves; ensured pixel-perfect rendering to pre-refactor baseline.  
+- Clustering and deduplication in news.py now fully operational with visible ×N badges on duplicates.  
+- Moon phase mapping in base.py confirmed accurate (e.g., 0.875 → waning crescent).  
+
+### Verified
+
+- All cards render with icons, timestamps, and dynamic data (e.g., weather.json moon at night).  
+- System resilience: Manual render.py runs and pidisplay.service restarts show no flicker or artifacts.  
+
+
 ## [1.3.1] - 2025-10-30
 ### Fixed
 - **Color distortion in dark/mid tones** (green tint, purple headers, black backgrounds)

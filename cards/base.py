@@ -11,9 +11,16 @@ W, H = 480, 320
 OUT = os.path.expanduser("~/pidisplay/images")
 ICON_DIR = os.path.expanduser("~/pidisplay/icons")
 
-ICON_WEATHER_BASE   = os.path.join(ICON_DIR, "weather_base")
-ICON_WEATHER_LAYERS = os.path.join(ICON_DIR, "weather_layers")
-ICON_WEATHER_TINY   = os.path.join(ICON_DIR, "weather_tiny")
+ICON_WEATHER_BASE   = os.path.join(ICON_DIR, "weather", "base")
+ICON_WEATHER_LAYERS = os.path.join(ICON_DIR, "weather", "layers")
+ICON_WEATHER_TINY   = os.path.join(ICON_DIR, "weather", "layers", "tiny_layers")
+
+SOURCE_STYLES = {
+    "fox":       {"bg": (230,240,255), "bd": (170,200,255), "icon": "fox.png"},
+    "breitbart": {"bg": (255,240,225), "bd": (255,205,160), "icon": "breitbart.png"},
+    "ap":        {"bg": (238,238,238), "bd": (210,210,210), "icon": "ap.png"},
+    "_default":  {"bg": (228,232,236), "bd": (196,204,212), "icon": None},
+}
 
 # ----------------------------------------------------------------------
 # LAZY CONFIG
@@ -133,12 +140,14 @@ def wc_to_tiny_layer(code: int):
     return None
 
 def load_rgba(path, size=None):
+    print(f"Attempting to load: {path} (exists: {os.path.exists(path)})")
     try:
         im = Image.open(path).convert("RGBA")
         if size:
             im = im.resize(size, Image.Resampling.LANCZOS)
         return im
-    except:
+    except Exception as e:
+        print(f"Load failed for {path}: {e}")
         return None
 
 def load_icon(path, size):
@@ -148,13 +157,28 @@ def load_icon(path, size):
     except:
         return None
 
+_icon_cache = {}
+def load_icon(path, size):
+    key = (path, size)
+    if key in _icon_cache:
+        return _icon_cache[key]
+    try:
+        img = Image.open(path).convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
+    except Exception:
+        # fallback: simple placeholder if no icon
+        img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        dr = ImageDraw.Draw(img)
+        dr.rectangle([0, 0, size-1, size-1], outline=(60, 60, 60), width=1)
+    _icon_cache[key] = img
+    return img
+
 def wrap_text_px(d, text, fnt, max_w, max_lines=2):
     words = text.split()
     lines = []
     cur = []
     for word in words:
         test = " ".join(cur + [word])
-        w, _ = text_size(d, test, fnt.point_size)
+        w, _ = text_size(d, test, fnt.size)
         if w <= max_w:
             cur.append(word)
         else:
@@ -172,13 +196,8 @@ def wrap_text_px(d, text, fnt, max_w, max_lines=2):
         lines[-1] = lines[-1][:-3] + "..."
     return lines
 
-def get_source_style(src):
-    defaults = {
-        "bg": (40, 40, 40),
-        "bd": (80, 80, 80),
-        "icon": None
-    }
-    return defaults
+def get_source_style(src: str):
+    return SOURCE_STYLES.get((src or "").lower(), SOURCE_STYLES["_default"])
 
 def is_stale(ts_iso, max_age_sec=180):
     """Return True if ts_iso is older than max_age_sec. Accepts '...Z' or offset."""
