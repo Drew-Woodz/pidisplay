@@ -60,12 +60,12 @@
 * [x] **Consistent timestamp styling**  
   Unified `TIMESTAMP_*` constants + `text_size()` helper used in Weather, News, and footer. Right-aligned, top-aligned, higher contrast.
 
+* [x] **Renderer daemon split**  
+  Continuous process managing rotation, touch, and on-demand repaints. Updaters remain decoupled via JSON data files.
+
 ---
 
 ## In Progress / Upcoming
-
-* [ ] **Renderer daemon split**  
-  Continuous process managing rotation, touch, and on-demand repaints. Updaters remain decoupled via JSON data files.
 
 * [ ] **Config system + live reload**  
   Introduce `config.yaml` for card order, sources, colors, refresh intervals, and toggles. Implement lightweight file-watch to reload on change.
@@ -183,7 +183,7 @@
 * Blitter vs fbi: Blitter preferred for flicker-free but reverted to fbi with A/B symlinks during security tweaks (see run_slideshow.sh).  
 * Config-driven order/live reload: Implemented in config.py; watcher in display_slideshow.py (experimental, optional).  
 * Day/night weather: Added in weather.py with day_bg color from config.  
-* Timestamp consistency: Unified across cards in base.py.  
+* Timestamp consistency: Unified across cards in base.py. 
 
 ## Appendix II: Post-Log Updates from Troubleshooting  
 
@@ -191,6 +191,7 @@
 * Icon loading: Added caching and fallbacks in base.py; verified weather hero/tinies and news sources.  
 * Clustering fixes: Timezone import and 24h filter resolved in news.py.  
 * Debug aids: Temporary prints for load_rgba to catch silent failures.  
+* Timers/services cleanup: Removed redundants (e.g., weather_fetch, geo_fetch), added news-render with deps; masked deprecated. Full per-card chains (fetch+render) for decoupling.
 
 - Cross-reference develop.md Entry 11 for refactor details.
 

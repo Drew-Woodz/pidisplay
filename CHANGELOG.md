@@ -2,6 +2,27 @@
 
 > Summarized highlights from the active development log (`develop.md`).
 
+## [v0.5.1] - 2025-11-04
+### Added
+
+- Per-card render timers: news-render.service/timer for post-merge rendering (every 2min, deps on breitbart/fox).
+- Loose deps via Unit= in news-render.timer for activation triggering.
+
+### Fixed
+
+- Removed redundants: Disabled/masked weather_fetch, geo_fetch, btc_fetch, news-update, picards (integrated into combined chains like weather-update).
+- Verified viewer as blitter-only (display_slideshow.py on *.raw, no fbi/A-B PNG legacy).
+
+### Improved
+
+- Consolidated pipelines: Weather/geo chained in weather-update ExecStart (fetch_geo.py → fetch_weather.py → render.py --only).
+- Staggered OnBootSec/OnUnitActiveSec for balanced load; masked deprecated for DIY safety.
+
+### Verified
+
+- Timers list: 15 active (e.g., btc-update 30s, news-render 2min); journal shows clean renders (e.g., "Rendered news" every 2min, low CPU).
+- No overlaps or legacy fbi; full card updates reliable via render.py --only.
+
 ## [v0.5.0] - 2025-11-03
 
 ### Added
