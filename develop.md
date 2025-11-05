@@ -925,6 +925,9 @@ ls -lh ~/pidisplay/images/
 **Note:**  
 The original `render_cards.py` was our **truth stone**. Every pixel, font, and margin was matched. The refactor was **pixel-perfect** and **100% backward compatible**.
 
+**Addendum to Entry 8 (Blitter Introduction and Dual Output):**  
+Post-verification: Confirmed blitter as active viewer path (display_slideshow.py looping RAW blits to /dev/fb1, per pidisplay.service ExecStart and journal "Blitted *.raw"). fbi + A/B PNG symlinks (playlist/ via run_slideshow.sh) deprecated and unused—removable inert legacy from flicker hacks (Entries 4-6). Dual PNG/RAW saves preserved for IDE debug, but only RAW consumed. No mixed elements; zero flicker achieved without VT/tty.
+
 # Development Log — Entry 9 (Blitter Permission and Black Screen Fixes)
 
 **Summary:**  
@@ -941,6 +944,10 @@ Resolved black screens after switching to user 'pi' for security. Root cause: In
 
 **Result:**  
 Flicker-free display restored, colors accurate, all under secure pi user.
+
+
+**Addendum to Entry 9 (Blitter vs. fbi: Revert and Security Tweaks):**  
+Post-cleanup: Blitter preference held (no revert to fbi); pidisplay.service runs Python daemon as pi/video group. Legacy A/B removed (rm -rf playlist/; archive run_slideshow.sh). Verification via systemctl status/journalctl ruled out hybrids—pure RAW pipeline.
 
 # Development Log — Entry 10 (Refactor to Modular Cards and Config System)
 
@@ -994,3 +1001,31 @@ All cards (clock, weather, btc, news) now render fully with timestamps, icons, a
 **Note:**  
 
 No new systems introduced; all fixes aligned with existing Pillow-based PNG/RAW pipeline and modular cards structure.
+
+### Development Log — Entry 12 (Timers/Services Cleanup and Viewer Pipeline Verification Post-Refactor)
+
+**Summary:**  
+Conducted targeted verification and cleanup of systemd timers/services to eliminate redundants, confirm per-card decoupling, and align with the modular refactor (Entry 10: cards/ package with config.yaml-driven enables). This built on prior blitter confirmation (via pidisplay.service ExecStart=display_slideshow.py, journal blitting *.raw), resolving gaps from earlier fbi/blitter transitions. Challenges: Lingering deprecated units (e.g., btc_fetch, picards) risking stale renders if re-enabled; overlapping weather/geo fetches; incomplete news pipeline post-merge (fetches without dedicated render); doc artifacts in timers_and_services.md causing confusion on geo_fetch.timer (historical, not active). Solutions: Disabled/masked legacy, consolidated chains (e.g., weather-update with integrated geo fetch), added news-render with deps for merge→render flow. Methodology: Used systemctl status/journalctl for runtime verification (e.g., RAW blits every 8s, no fbi), ls/cat for unit existence, daemon-reload post-edits; cross-referenced develop.md Entries 2-6 (timers) and 7-9 (blitter for zero flicker) to avoid assumptions.
+
+**Key Fixes:**  
+- Disabled weather_fetch (redundant with weather-update's ExecStart chain: fetch_geo.py → fetch_weather.py → render.py --only weather).  
+- Disabled geo_fetch.service (no standalone need; integrated in weather-update).  
+- Added/updated news-render.service/timer: Render-only (render.py --only news) every 2min with deps (After/Requires=news-breitbart/fox in service, Unit= in timer for activation trigger).  
+- Removed deprecated files (btc_fetch, geo_fetch, news-update, picards) and masked units to prevent revival.  
+- Refined news-render.timer: Added Unit= for loose chaining, OnBootSec=75s stagger.  
+
+**Lessons Learned:**  
+- Gaps in dev history (e.g., unupdated Entries 7-9 on blitter adoption post-fbi revert) lead to time spent verifying active pipeline—always append verification steps/addendums promptly.  
+- Chained ExecStart in oneshots (e.g., weather-update) simplifies deps but needs explicit doc (timers_and_services.md) to avoid confusion on "missing" units like geo_fetch.  
+- Masking post-removal ensures DIY resilience; journalctl/systemctl list-timers for quick audits.  
+
+**Result:**  
+Timers now: btc-update (30s fetch+render), clock-update (15s render), news-breitbart/fox (3min fetches), news-render (2min render), weather-update (10min full chain). Verified via journal (e.g., "Rendered news" every 2min, low CPU); no overlaps, full cycles reliable. Viewer confirmed as blitter-only (*.raw direct to /dev/fb1, no fbi/A-B PNG legacy).  
+
+**Next Steps:**  
+- [ ] Address color glitches (e.g., dithering tweaks per Entry 7).  
+- [ ] Proceed to input framework per master_plan.md.  
+
+**Note:**  
+No architecture changes; preserves venv isolation, atomic saves, and RAW blitter (Entry 8). Cross-reference timers_and_services.md for final units (cleaned commented artifacts).
+
