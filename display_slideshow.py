@@ -19,7 +19,7 @@ FB                = "/dev/fb1"
 W, H              = 480, 320
 EXPECTED_SIZE     = W * H * 2                     # 307200 bytes
 IMAGE_DIR         = os.path.expanduser("~/pidisplay/images")
-INTERVAL          = float(os.environ.get("SLIDE_INTERVAL", "8"))
+DEFAULT_INTERVAL  = 8  # Fallback if no per-card interval
 CONFIG_PATH       = Path(os.path.expanduser("~/pidisplay/config.yaml"))
 
 # ----------------------------------------------------------------------
@@ -75,13 +75,13 @@ def main():
 
     while True:
         # ------------------------------------------------------------------
-        # 1. Gather all .raw files that match enabled cards
+        # 1. Gather .raw files in config order for enabled cards
         # ------------------------------------------------------------------
-        all_raw = sorted(glob.glob(os.path.join(IMAGE_DIR, "*.raw")))
         enabled_cards = {c for c, on in CONFIG["cards"]["enabled"].items() if on}
         raw_files = [
-            f for f in all_raw
-            if os.path.basename(f).split(".")[0] in enabled_cards
+            os.path.join(IMAGE_DIR, card + ".raw")
+            for card in CONFIG["cards"]["order"]
+            if card in enabled_cards and os.path.exists(os.path.join(IMAGE_DIR, card + ".raw"))
         ]
 
         # ------------------------------------------------------------------
@@ -99,16 +99,18 @@ def main():
             config_changed = False
 
         # ------------------------------------------------------------------
-        # 3. Show each enabled card
+        # 3. Show each enabled card with per-card interval
         # ------------------------------------------------------------------
         if not raw_files:
             logging.warning("No .raw files for enabled cards – sleeping")
-            time.sleep(INTERVAL)
+            time.sleep(DEFAULT_INTERVAL)
             continue
 
         for path in raw_files:
+            card = os.path.basename(path).split(".")[0]  # e.g., 'news'
             blit(path)
-            time.sleep(INTERVAL)
+            interval = CONFIG["intervals"].get(card, DEFAULT_INTERVAL)
+            time.sleep(interval)
 
 if __name__ == "__main__":
     try:

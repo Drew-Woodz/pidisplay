@@ -53,6 +53,11 @@ def render():
     draw_header(d, title)
 
     items = data.get("items", []) or []
+
+    # New: Filter items by enabled sources from config
+    enabled_sources = {s.lower() for s, enabled in cfg.get("sources", {}).get("news", {}).items() if enabled}
+    items = [it for it in items if (it.get("source") or "").lower() in enabled_sources]
+
     items = [it for it in items if not older_than_24h(it.get("ts", ""))]
     clusters = cluster_news(items, top_n=5) if items else []
 

@@ -74,6 +74,7 @@ Type=oneshot
 User=pi
 WorkingDirectory=/home/pi/pidisplay
 ExecStart=/home/pi/venv/bin/python /home/pi/pidisplay/fetch_news/fetch_breitbart.py
+TimeoutSec=60s
 ```
 
 ```bash
@@ -102,6 +103,7 @@ Type=oneshot
 User=pi
 WorkingDirectory=/home/pi/pidisplay
 ExecStart=/home/pi/venv/bin/python /home/pi/pidisplay/fetch_news/fetch_fox.py
+TimeoutSec=60s
 ```
 
 ```bash

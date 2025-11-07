@@ -2,6 +2,23 @@
 
 > Summarized highlights from the active development log (`develop.md`).
 
+## [v0.5.2] - 2025-11-06
+
+### Added
+- Sources toggles in config.yaml for per-card filtering (e.g., news.breitbart/fox).
+- Per-card slide intervals in display_slideshow.py from config.yaml "intervals" (dynamic reloadable delays).
+
+### Fixed
+- Stale moon phase rendering on weather card via enforced WEATHERAPI_KEY, 24h cache expiry, and failure clearing to None in fetch_weather.py (avoids retaining wrong prev_moon).
+
+### Improved
+- News.py filters items by enabled sources pre-clustering for config-driven toggles.
+- Config.py defaults expanded to include sources and slide intervals documentation.
+
+### Verified
+- Manual fetch_weather.py runs confirm fresh phases (e.g., "Waning Gibbous (0.625)" → correct waning_gibbous icon).
+- Config edits trigger live reloads, updating slideshow order/enables/sources/delays without restarts; journals show clean cycles.
+
 ## [v0.5.1] - 2025-11-04
 ### Added
 

@@ -62,13 +62,15 @@
 
 * [x] **Renderer daemon split**  
   Continuous process managing rotation, touch, and on-demand repaints. Updaters remain decoupled via JSON data files.
+  
+* [ ] **Config system + live reload**  
+  Introduce `config.yaml` for card order, sources, colors, refresh intervals, and toggles. Implement lightweight file-watch to reload on change.
 
 ---
 
 ## In Progress / Upcoming
 
-* [ ] **Config system + live reload**  
-  Introduce `config.yaml` for card order, sources, colors, refresh intervals, and toggles. Implement lightweight file-watch to reload on change.
+
 
 * [ ] **Input framework**  
   Standardize touch zones: left/right navigation, long-press to pause, two-finger tap for menu. Produce unified event objects.
