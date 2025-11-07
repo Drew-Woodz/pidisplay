@@ -1002,7 +1002,7 @@ All cards (clock, weather, btc, news) now render fully with timestamps, icons, a
 
 No new systems introduced; all fixes aligned with existing Pillow-based PNG/RAW pipeline and modular cards structure.
 
-### Development Log — Entry 12 (Timers/Services Cleanup and Viewer Pipeline Verification Post-Refactor)
+# Development Log — Entry 12 (Timers/Services Cleanup and Viewer Pipeline Verification Post-Refactor)
 
 **Summary:**  
 Conducted targeted verification and cleanup of systemd timers/services to eliminate redundants, confirm per-card decoupling, and align with the modular refactor (Entry 10: cards/ package with config.yaml-driven enables). This built on prior blitter confirmation (via pidisplay.service ExecStart=display_slideshow.py, journal blitting *.raw), resolving gaps from earlier fbi/blitter transitions. Challenges: Lingering deprecated units (e.g., btc_fetch, picards) risking stale renders if re-enabled; overlapping weather/geo fetches; incomplete news pipeline post-merge (fetches without dedicated render); doc artifacts in timers_and_services.md causing confusion on geo_fetch.timer (historical, not active). Solutions: Disabled/masked legacy, consolidated chains (e.g., weather-update with integrated geo fetch), added news-render with deps for merge→render flow. Methodology: Used systemctl status/journalctl for runtime verification (e.g., RAW blits every 8s, no fbi), ls/cat for unit existence, daemon-reload post-edits; cross-referenced develop.md Entries 2-6 (timers) and 7-9 (blitter for zero flicker) to avoid assumptions.
@@ -1029,3 +1029,32 @@ Timers now: btc-update (30s fetch+render), clock-update (15s render), news-breit
 **Note:**  
 No architecture changes; preserves venv isolation, atomic saves, and RAW blitter (Entry 8). Cross-reference timers_and_services.md for final units (cleaned commented artifacts).
 
+# Development Log Entry 13 - Moon Phase Fetch Robustness and Config Expansion Verification
+
+**Summary:**  
+Addressed stale moon phase rendering on weather card (e.g., incorrect waning crescent for Nov 6 2025 waning gibbous ~95.8% illumination), traced to skipped WeatherAPI fetches falling back to prev_moon without clearing. Patched fetch_weather.py for key enforcement, cache expiry, and failure clearing to ensure fresh data or graceful None (no icon) over stale. Verified config expansions (sources toggles in news.py filtering, per-card intervals as viewer slide delays in display_slideshow.py) post-Entry 10 refactor, confirming live reload propagates order/enables/sources dynamically without service restarts. This built on Entry 12's per-card decoupling, extending config.yaml for sources without rework.
+
+**Key Fixes:**  
+- Enforced WEATHERAPI_KEY in fetch_weather.py (error/exit if unset, prominent logging).  
+- Added 24h cache expiry on load (filters old keys).  
+- On fetch failure, set moon_phase_fraction = None (clears stale prev_moon, renderer defaults safely).  
+- Integrated illum-based fallback estimate for phase fraction if name missing.  
+- Expanded config.yaml/sources in news.py (filter items by enabled sources pre-clustering).  
+- Applied per-card intervals in display_slideshow.py loop (dynamic sleep from CONFIG).  
+
+**Lessons Learned:**  
+- Silent skips (e.g., missing key) lead to subtle staleness—enforce requirements early with errors over fallbacks.  
+- Cache without expiry amplifies issues; always time-bound entries.  
+- Config expansions succeed when layered on existing load/reload (Entry 10 watcher), but test end-to-end (fetch → JSON → render → viewer) to catch chain gaps.  
+
+**Result:**  
+Moon phase now fetches reliably (manual run confirmed "Waning Gibbous (0.625)" → correct icon), cache self-cleans, failures degrade gracefully. Config live reload fully supports sources/order/intervals, verified via edits triggering re-renders and dynamic slideshow (e.g., disable breitbart omits items). Low overhead, no new deps.  
+
+**Next Steps:**  
+- [ ] Proceed to input framework per master_plan.md (touch zones/nav).  
+- [ ] Monitor weather-update journals for key/fetch issues.  
+
+**Note:**  
+No architecture changes; preserves Open-Meteo primary, WeatherAPI moon-only. Cross-reference master_plan.md for marked [x] on config + reload.
+
+---

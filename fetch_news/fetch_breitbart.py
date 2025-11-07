@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os, json, re, hashlib, feedparser
+import requests
 from datetime import datetime, timezone
 
 STATE = os.path.expanduser("~/pidisplay/state/news.json")
@@ -7,8 +8,7 @@ TMP   = STATE + ".tmp"
 SRC   = "breitbart"
 # Breitbart’s feed is commonly mirrored via FeedBurner; keep as provisional.
 FEEDS = [
-    "https://feeds.feedburner.com/breitbart",      # try this first
-    # "https://feeds.feedburner.com/BreitbartFeed", # alt legacy alias
+    "https://feeds.feedburner.com/breitbart"
 ]
 
 def load():
@@ -32,8 +32,16 @@ def main():
     seen = {it["id"] for it in items}
 
     for url in FEEDS:
-        feed = feedparser.parse(url, request_headers={"User-Agent": "pidisplay/1.0 (+https://github.com/yourrepo)"},
-                                response_headers={"Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8"})
+        try:
+            # Fetch with timeout to prevent hangs
+            response = requests.get(url, headers={"User-Agent": "pidisplay/1.0 (+https://github.com/yourrepo)", "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8"}, timeout=30)
+            response.raise_for_status()
+            feed_content = response.content
+            feed = feedparser.parse(feed_content)
+        except Exception as e:
+            print(f"Error fetching/parsing {url}: {str(e)}")
+            continue  # Skip to next feed on error
+
         # If the feed is down/empty, skip quietly.
         for e in (feed.entries or [])[:25]:
             title = (getattr(e, "title", "") or "").strip()

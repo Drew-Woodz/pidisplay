@@ -62,7 +62,6 @@ def main():
     prev = load(OUT) or {}
     prev_moon = ((prev.get("astronomy") or {}).get("moon_phase"))
 
-
     # --- 2) Astronomy (moon phase) — now with caching ---
     today = datetime.now().date()
     tomorrow = today + timedelta(days=1)
@@ -72,6 +71,11 @@ def main():
     cache_key = f"{today_str}:{loc_key}"
 
     cache = load(ASTRO_CACHE) or {}
+
+    # New: Expire old cache entries (>24h)
+    now = datetime.now(timezone.utc)
+    cache = {k: v for k, v in cache.items() if (now - datetime.fromisoformat(k.split(':')[0])).total_seconds() < 24*3600}
+
     cached = cache.get(cache_key)
 
     moon_phase_fraction = None  # 0..1 expected by your renderer
@@ -86,48 +90,42 @@ def main():
     if moon_phase_fraction is None:
         api_key = os.getenv("WEATHERAPI_KEY")
         if not api_key:
-            print("⚠️ WEATHERAPI_KEY not set; skipping moon phase.")
+            print("ERROR: WEATHERAPI_KEY not set; cannot fetch moon phase. Set it in ~/.pidisplay_env and restart service.")
+            # New: Do not fallback to prev_moon—clear to None to avoid stale data
+            moon_phase_fraction = None
         else:
             try:
                 # WeatherAPI astronomy endpoint:
-                # https://api.weatherapi.com/v1/astronomy.json?key=KEY&q=LAT,LON&dt=YYYY-MM-DD
-                url = "https://api.weatherapi.com/v1/astronomy.json"
-                params = {"key": api_key, "q": f"{lat},{lon}", "dt": today_str}
-                ra = requests.get(url, params=params, timeout=6)
+                # https://api.weatherapi.com/v1/astronomy.json?key=APIKEY&q=LAT,LON&dt=DATE
+                params_astro = {
+                    "key": api_key,
+                    "q": f"{lat},{lon}",
+                    "dt": today_str,
+                }
+                ra = requests.get("https://api.weatherapi.com/v1/astronomy.json", params=params_astro, timeout=6)
                 ra.raise_for_status()
-                j = ra.json()
-
-                astro = (((j or {}).get("astronomy") or {}).get("astro") or {})
-                moon_phase_name = astro.get("moon_phase")
-                # If you prefer illumination %, you can derive a rough fraction with int(illum)/100
-                frac_from_map = _PHASE_FRACTION.get(moon_phase_name or "")
-                if frac_from_map is not None:
-                    moon_phase_fraction = frac_from_map
-                else:
-                    # Fallback: try illumination percentage → fraction
-                    illum = astro.get("moon_illumination")
-                    try:
-                        moon_phase_fraction = max(0.0, min(1.0, float(illum) / 100.0))
-                    except Exception:
-                        moon_phase_fraction = None
-
-                # Cache if we got *something*
-                if moon_phase_fraction is not None:
-                    cache[cache_key] = {
-                        "moon_phase": moon_phase_fraction,
-                        "moon_phase_name": moon_phase_name,
-                        "fetched": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                        "source": "weatherapi",
-                    }
-                    save_atomic(cache, ASTRO_CACHE)
-
-                    # Friendly log (like you showed earlier)
-                    print(f"🌙 WeatherAPI moon phase: {moon_phase_name} ({moon_phase_fraction:.3f})")
+                j_astro = ra.json()
+                moon_phase_name = j_astro.get("astronomy", {}).get("astro", {}).get("moon_phase")
+                illum = j_astro.get("astronomy", {}).get("astro", {}).get("moon_illumination", 0)  # % lit
+                moon_phase_fraction = _PHASE_FRACTION.get(moon_phase_name)
+                if moon_phase_fraction is None:
+                    # New: Fallback estimate from illumination (0-100%) for robustness
+                    # Assume post-full waning if illum >50, etc.—rough but better than None
+                    if illum > 50:
+                        moon_phase_fraction = 0.5 + (illum / 100.0) * 0.25  # e.g., 95% → ~0.737 waning gibbous
+                    else:
+                        moon_phase_fraction = (illum / 100.0) * 0.5  # e.g., 10% → 0.05 waxing crescent
+                # Store in cache
+                cache[cache_key] = {"moon_phase": moon_phase_fraction, "moon_phase_name": moon_phase_name}
+                save_atomic(cache, ASTRO_CACHE)
+                print(f"🌙 WeatherAPI moon phase: {moon_phase_name} ({moon_phase_fraction:.3f})")
             except Exception as e:
                 print("⚠️ WeatherAPI astronomy fetch failed:", e)
+                moon_phase_fraction = None  # New: Clear on fail
 
     # ... after moon_phase = moon_list[0] if moon_list else None
     if moon_phase_fraction is None and prev_moon is not None:
+        # Retain fallback but only if not cleared
         moon_phase_fraction = prev_moon
 
 

@@ -11,11 +11,16 @@ cards:
     btc: true
     news: true
 
-intervals:
-  clock: 15
-  weather: 300
-  btc: 60
-  news: 300
+sources:  # New: Per-card source toggles (e.g., for news feeds)
+  news:
+    breitbart: true
+    fox: true
+
+intervals:  # Slide delays in viewer (seconds per card; was render intervals, now viewer-specific)
+  clock: 5   # Shorter for clock
+  weather: 10
+  btc: 8
+  news: 20   # Longer for news
 
 colors:
   bg: [12, 12, 12]
