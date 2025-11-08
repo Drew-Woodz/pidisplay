@@ -74,7 +74,7 @@ def main():
 
     # New: Expire old cache entries (>24h)
     now = datetime.now(timezone.utc)
-    cache = {k: v for k, v in cache.items() if (now - datetime.fromisoformat(k.split(':')[0])).total_seconds() < 24*3600}
+    cache = {k: v for k, v in cache.items() if (now - datetime.fromisoformat(k.split(':')[0]).replace(tzinfo=timezone.utc)).total_seconds() < 24*3600}
 
     cached = cache.get(cache_key)
 
