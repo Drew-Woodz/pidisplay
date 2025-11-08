@@ -1057,4 +1057,6 @@ Moon phase now fetches reliably (manual run confirmed "Waning Gibbous (0.625)" â
 **Note:**  
 No architecture changes; preserves Open-Meteo primary, WeatherAPI moon-only. Cross-reference master_plan.md for marked [x] on config + reload.
 
+**Addendum:** Patched fetch_weather.py cache expiry for tz-aware comparison (fromisoformat(...).replace(tzinfo=timezone.utc)), resolving TypeError on offset mismatch; manual/tested runs now succeed without failures.
+
 ---
