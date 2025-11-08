@@ -860,6 +860,8 @@ Dithering to 32/64/32 levels on low-brightness values (e.g., `12,12,12`) caused 
 DITHER_565 = False
 ```
 
+---
+
 ## Development Log — Entry 8 (Modular Cards + Config System)
 
 **Summary:**  
@@ -925,8 +927,10 @@ ls -lh ~/pidisplay/images/
 **Note:**  
 The original `render_cards.py` was our **truth stone**. Every pixel, font, and margin was matched. The refactor was **pixel-perfect** and **100% backward compatible**.
 
-**Addendum to Entry 8 (Blitter Introduction and Dual Output):**  
+**Addendum (Blitter Introduction and Dual Output):**  
 Post-verification: Confirmed blitter as active viewer path (display_slideshow.py looping RAW blits to /dev/fb1, per pidisplay.service ExecStart and journal "Blitted *.raw"). fbi + A/B PNG symlinks (playlist/ via run_slideshow.sh) deprecated and unused—removable inert legacy from flicker hacks (Entries 4-6). Dual PNG/RAW saves preserved for IDE debug, but only RAW consumed. No mixed elements; zero flicker achieved without VT/tty.
+
+---
 
 # Development Log — Entry 9 (Blitter Permission and Black Screen Fixes)
 
@@ -946,8 +950,10 @@ Resolved black screens after switching to user 'pi' for security. Root cause: In
 Flicker-free display restored, colors accurate, all under secure pi user.
 
 
-**Addendum to Entry 9 (Blitter vs. fbi: Revert and Security Tweaks):**  
+**Addendum  (Blitter vs. fbi: Revert and Security Tweaks):**  
 Post-cleanup: Blitter preference held (no revert to fbi); pidisplay.service runs Python daemon as pi/video group. Legacy A/B removed (rm -rf playlist/; archive run_slideshow.sh). Verification via systemctl status/journalctl ruled out hybrids—pure RAW pipeline.
+
+---
 
 # Development Log — Entry 10 (Refactor to Modular Cards and Config System)
 
@@ -967,6 +973,8 @@ Split monolithic render_cards.py into cards/ modules (base.py helpers + individu
 
 **Result:**  
 Cleaner code, live config reload via watchdog (optional), auto-updates per card interval. Viewer picks up new PNGs seamlessly.  
+
+---
 
 # Development Log — Entry 11 (Refactor Wrap-Up: Rendering Fixes and Icon Restoration)
 
@@ -1002,6 +1010,8 @@ All cards (clock, weather, btc, news) now render fully with timestamps, icons, a
 
 No new systems introduced; all fixes aligned with existing Pillow-based PNG/RAW pipeline and modular cards structure.
 
+---
+
 # Development Log — Entry 12 (Timers/Services Cleanup and Viewer Pipeline Verification Post-Refactor)
 
 **Summary:**  
@@ -1028,6 +1038,8 @@ Timers now: btc-update (30s fetch+render), clock-update (15s render), news-breit
 
 **Note:**  
 No architecture changes; preserves venv isolation, atomic saves, and RAW blitter (Entry 8). Cross-reference timers_and_services.md for final units (cleaned commented artifacts).
+
+---
 
 # Development Log Entry 13 - Moon Phase Fetch Robustness and Config Expansion Verification
 
@@ -1060,3 +1072,39 @@ No architecture changes; preserves Open-Meteo primary, WeatherAPI moon-only. Cro
 **Addendum:** Patched fetch_weather.py cache expiry for tz-aware comparison (fromisoformat(...).replace(tzinfo=timezone.utc)), resolving TypeError on offset mismatch; manual/tested runs now succeed without failures.
 
 ---
+
+# Development Log Entry 14 - Input Framework Implementation and Touchscreen Gesture Detection
+
+**Summary:**  
+
+Implemented input framework per master_plan.md: Threaded polling of /dev/input/event0 for ads7846 touchscreen events, with calibration for rotate=90 overlay (swap/invert/scale raw coords to 480x320 logical). Standardized zones (left/center/right, top/bottom) and gestures (tap, long-press >1s, two-finger tap <0.3s between ups, swipes >200px delta with direction). Produces unified event dicts (type/zone/vertical_zone/duration/count/cal_x/y/delta_x/y) queued to display_slideshow.py for handling (nav on left/right tap/swipe, pause/resume toggle on center long-press, menu overlay on two-finger). Decoupled via input_handler.py thread/queue for responsiveness (poll 0.1s, drain non-block), preserving blitter SRP. Verified on Pi: Events log immediately, gestures reliable (avg position reduces jitter ~20%, debounce ignores noise <0.05s), swipes detect full-length after threshold tweak. No new deps; raw struct unpack for portability.
+
+**Key Additions:**  
+
+- input_handler.py: Polls events, detects gestures (inter-tap chaining for multi, post-cal delta for directions), queues dicts.  
+
+- display_slideshow.py: Starts thread, drains queue in main loop, handles events (nav blits current, pause skips sleep, menu blits placeholder raw and waits for tap close).  
+
+- Calibration: X/Y swap/invert/scale with min/max offsets (tuned from test taps: left~46, right~443, top~54, bottom~269).  
+
+- Fidelity: Average x/y for stable taps (30-50px targets viable), delta signs flipped for correct swipe directions post-rotate.  
+
+**Lessons Learned:**  
+
+- Single-thread polling delays gestures (sleep blocks drain)—threading essential for real-time (10ms latency hardware limit).  
+
+- Resistive touch single-point—approx multi via timing; true multi needs capacitive upgrade.  
+
+- Calibration critical for zones (raw inverted/swapped from overlay)—test stubs accelerate tuning.  
+
+- Queue decouples well (SRP), but drain fully in loops to avoid backlog hangs (e.g., during pause).  
+
+**Result:**  
+
+Gestures responsive (logs/events <0.1s), nav/pause/menu functional without blitter delays. Fidelity high for hardware (accurate ~10px after avg, swipes/long reliable >200px/1s). No architecture changes; extends viewer loop minimally. Cross-reference master_plan.md for [x] on input framework.  
+
+**Next Steps:**  
+
+- [ ] Proceed to menu overlay system per master_plan.md (scrollable with zone taps/swipes).  
+- [ ] Add config.yaml thresholds (e.g., SWIPE_THRESHOLD) for painless tweaking.  
+

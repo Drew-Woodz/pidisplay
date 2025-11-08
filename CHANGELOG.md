@@ -2,6 +2,24 @@
 
 > Summarized highlights from the active development log (`develop.md`).
 
+## [v0.6.0] - 2025-11-07
+
+### Added
+- Input framework: Threaded polling of /dev/input/event0 for ads7846 touch events (input_handler.py).
+- Gesture detection: Tap/long-press/two-finger/swipe (directions with delta) with zones (horizontal/vertical).
+- Handling in display_slideshow.py: Nav on left/right tap/swipe, pause/resume toggle on center long-press, menu overlay on two-finger (placeholder menu.raw).
+- Calibration for rotate=90 (swap/invert/scale raw coords).
+
+### Fixed
+- Responsive input via threading/queue—events process <0.1s without blitter delays.
+
+### Improved
+- Debounce/average for fidelity (stable taps ~10px jitter reduction, reliable swipes >200px).
+- Drain queue in pause/menu loops to prevent backlog hangs.
+
+### Verified
+- Gestures log/process immediately; nav/pause/menu functional on Pi tests.
+
 ## [v0.5.2] - 2025-11-06
 
 ### Added
@@ -67,7 +85,6 @@
 
 - All cards render with icons, timestamps, and dynamic data (e.g., weather.json moon at night).  
 - System resilience: Manual render.py runs and pidisplay.service restarts show no flicker or artifacts.  
-
 
 ## [1.3.1] - 2025-10-30
 ### Fixed
