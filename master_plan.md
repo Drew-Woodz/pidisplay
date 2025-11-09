@@ -1,6 +1,6 @@
 # pidisplay: Master Plan
 
-> High-level roadmap for PiDisplay v1 — ordered to minimize rewrites and keep dependencies clean.
+> High-level roadmap for PiDisplay v1 - ordered to minimize rewrites and keep dependencies clean. - while minimizing rewrites and simplicity is king, good software engineering practices are the god emperor of the galaxy.
 
 ---
 
