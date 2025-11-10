@@ -56,7 +56,15 @@ def draw_header(d, title):
     FG = tuple(cfg["colors"]["fg"])
     sz = cfg["fonts"]["header_size"]
     d.rectangle([0, 0, W, 38], fill=BG)
-    d.text((12, 8), title, fill=FG, font=font(sz))
+    
+    # Add menu icon left of title
+    icon_path = os.path.join(ICON_DIR, "menu", "menu.png")
+    icon_size = 24  # Matches config.yaml's news_icon_sz; adjust if needed
+    icon = load_rgba(icon_path, size=(icon_size, icon_size))
+    if icon:
+        d.bitmap((4, 7), icon, fill=None)  # Use bitmap for alpha mask if RGBA
+    
+    d.text((12 + icon_size + 4, 8), title, fill=FG, font=font(sz))  # Shift title right to avoid overlap
 
 def fmt_clock(time_str):
     if not time_str:
