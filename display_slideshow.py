@@ -3,6 +3,8 @@
 # Direct-framebuffer blitter with live config reload
 
 import os
+import sys
+sys.path.insert(0, os.path.dirname(__file__))
 import glob
 import time
 import logging
@@ -14,6 +16,9 @@ import watchdog.observers
 import queue
 import threading  # Added for Thread
 import input_handler  # New: Import the input module
+from PIL import Image  # For composites
+import numpy as np  # For fast RGB565 conversion
+from cards import base  # Fixed import
 
 # ----------------------------------------------------------------------
 # Constants
@@ -24,6 +29,26 @@ EXPECTED_SIZE     = W * H * 2                     # 307200 bytes
 IMAGE_DIR         = os.path.expanduser("~/pidisplay/images")
 DEFAULT_INTERVAL  = 8  # Fallback if no per-card interval
 CONFIG_PATH       = Path(os.path.expanduser("~/pidisplay/config.yaml"))
+
+MENU_ICON_NORMAL = os.path.join(base.ICON_DIR, "menu", "menu.png")
+MENU_ICON_PRESSED = os.path.join(base.ICON_DIR, "menu", "menu_pressed.png")
+MENU_ICON_SIZE = 24
+MENU_ICON_POS = (4, 7)  # Top-left, centered in 38px header
+
+# Pre-load icons at start for speed
+normal_icon = None
+pressed_icon = None
+try:
+    normal_icon = Image.open(MENU_ICON_NORMAL).convert("RGBA").resize((MENU_ICON_SIZE, MENU_ICON_SIZE), Image.Resampling.LANCZOS)
+    logging.info(f"Pre-loaded normal icon: size {normal_icon.size}")
+except Exception as e:
+    logging.error(f"Pre-load normal icon failed: {e}")
+
+try:
+    pressed_icon = Image.open(MENU_ICON_PRESSED).convert("RGBA").resize((MENU_ICON_SIZE, MENU_ICON_SIZE), Image.Resampling.LANCZOS)
+    logging.info(f"Pre-loaded pressed icon: size {pressed_icon.size}")
+except Exception as e:
+    logging.error(f"Pre-load pressed icon failed: {e}")
 
 # ----------------------------------------------------------------------
 # Logging
@@ -72,19 +97,73 @@ def blit(raw_path: str):
     except Exception as e:
         logging.error(f"Blit failed for {raw_path}: {e}")
 
+def composite_blit(raw_path, card, pressed=False):
+    """Composite menu button over card PNG, convert to RGB565, blit temp raw"""
+    png_path = os.path.join(IMAGE_DIR, f"{card}.png")
+    if not os.path.exists(png_path):
+        logging.warning(f"No PNG for {card} - blitting raw without overlay")
+        blit(raw_path)
+        return
+
+    logging.info(f"Starting composite for {card}, pressed={pressed}")
+    img = Image.open(png_path).convert("RGB")
+    icon = pressed_icon if pressed else normal_icon
+    if icon:
+        img.paste(icon, MENU_ICON_POS, icon)  # Alpha overlay
+        logging.info("Pasted icon successfully")
+    else:
+        logging.warning("No icon available - skipping paste")
+
+    # Fast RGB565 with numpy (no byteswap for LE Pi)
+    pixels = np.array(img, dtype=np.uint16)
+    r = (pixels[:, :, 0] >> 3) & 0x1F
+    g = (pixels[:, :, 1] >> 2) & 0x3F
+    b = (pixels[:, :, 2] >> 3) & 0x1F
+    packed = (r << 11) | (g << 5) | b
+    data = packed.astype(np.uint16).tobytes('C')  # C order, no swap
+
+    temp_raw = os.path.join(IMAGE_DIR, "temp_overlay.raw")
+    tmp_temp = temp_raw + ".tmp"
+    with open(tmp_temp, "wb") as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_temp, temp_raw)  # Atomic save
+    logging.info("Wrote temp raw atomically")
+    blit(temp_raw)
+    try:
+        os.remove(temp_raw)
+        logging.info("Removed temp raw")
+    except Exception as e:
+        logging.error(f"Failed to remove temp raw: {e}")
+
 # ----------------------------------------------------------------------
 # Handle unified input event
 # ----------------------------------------------------------------------
 def handle_input_event(event, current_index, raw_files):
     global paused, menu_active
+    logging.info(f"Handling event: {event}")
+    # Get current path/card for press effect
+    path = raw_files[current_index] if raw_files else ''
+    card = os.path.basename(path).split(".")[0] if path else ''
+
+    # Menu tap check first
+    if event['type'] == 'tap' and event['cal_y'] < 38 and event['cal_x'] < (4 + MENU_ICON_SIZE + 4):
+        logging.info("Menu tap detected - starting press effect")
+        composite_blit(path, card, pressed=True)
+        time.sleep(0.2)  # Shorter for snappier feedback
+        composite_blit(path, card, pressed=False)
+        menu_active = not menu_active
+        return current_index  # Skip nav
+
     if event['type'] in ['tap', 'swipe_left', 'swipe_right']:
         if event['type'] == 'swipe_left' or event['zone'] == 'left':
             current_index = (current_index - 1) % len(raw_files)
-            blit(raw_files[current_index])
+            composite_blit(raw_files[current_index], os.path.basename(raw_files[current_index]).split(".")[0])  # Use composite for nav too
             return current_index
         elif event['type'] == 'swipe_right' or event['zone'] == 'right':
             current_index = (current_index + 1) % len(raw_files)
-            blit(raw_files[current_index])
+            composite_blit(raw_files[current_index], os.path.basename(raw_files[current_index]).split(".")[0])
             return current_index
     elif event['type'] == 'long_press' and event['zone'] == 'center':
         paused = not paused
@@ -161,7 +240,7 @@ def main():
 
         path = raw_files[current_index]
         card = os.path.basename(path).split(".")[0]
-        blit(path)
+        composite_blit(path, card)  # Always overlay button
         interval = CONFIG["intervals"].get(card, DEFAULT_INTERVAL)
         time.sleep(interval)
         current_index = (current_index + 1) % len(raw_files)

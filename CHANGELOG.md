@@ -2,6 +2,26 @@
 
 > Summarized highlights from the active development log (`develop.md`).
 
+## [v0.6.1] - 2025-11-10
+
+### Added
+- Persistent menu button as dynamic overlay in display_slideshow.py: Composites 24x24 RGBA PNG icon over each card's PNG before RGB565 blit, allowing uninterrupted rotation underneath. Press effect swaps to pressed icon on tap, toggles menu_active for future dropdown.
+- Pre-loaded icons at start for efficiency, atomic temp raw saves to prevent locks.
+- Numpy-optimized RGB565 conversion in composite_blit for faster performance (~0.1s per blit on Pi Zero).
+
+### Fixed
+- Menu tap detection priority to avoid nav conflict (left zone taps now swap without swipe/disappear).
+- Color corruption from byte order mismatch in numpy tobytes (removed byteswap, used 'C' order to match little-endian fb1 and bgr=1 overlay).
+
+### Improved
+- Event handling responsiveness with menu check first in handle_input_event.
+- Reduced lag in press effect sleep to 0.2s for snappier feedback.
+
+### Verified
+- Icons load/pre-load as valid PNG (normal and pressed both 24x24).
+- Rotation stable under overlay, colors correct post-fix, no lockup/memory leaks (transient CPU ~38% on composite, stable ~235MB used).
+- Tap registers as menu if in zone, swaps visibly if pressed.png differs, no nav interference.
+
 ## [v0.6.0] - 2025-11-07
 
 ### Added

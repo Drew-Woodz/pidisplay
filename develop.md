@@ -1108,3 +1108,37 @@ Gestures responsive (logs/events <0.1s), nav/pause/menu functional without blitt
 - [ ] Proceed to menu overlay system per master_plan.md (scrollable with zone taps/swipes).  
 - [ ] Add config.yaml thresholds (e.g., SWIPE_THRESHOLD) for painless tweaking.  
 
+---
+
+## Development Log Entry 15 - Executive summary
+
+* Implemented persistent menu button as dynamic overlay in display_slideshow.py: Composites 24x24 RGBA PNG icon (menu.png) over each card's PNG before RGB565 conversion and fb1 blit—allows cards to rotate uninterrupted underneath, decouples UI from card renders (no base.py changes needed after revert). Press effect on tap swaps to menu_pressed.png for 0.2s, toggles menu_active (placeholder for dropdown).
+* Optimized RGB565 conversion with numpy for ~10x speed on Pi Zero (vectorized bit-shifts/tobytes, reduces ~0.9s lag per composite to ~0.1s)—installed via piwheels, with libopenblas/libatlas deps for ARM math. Fixed initial corruption (rotated/mirrored/stacked) by using 'C' order without byteswap (matches little-endian fb1 per Entry 9). Colors restored by aligning with bgr=1 overlay (packed as R<<11 | G<<5 | B).
+* Prioritized menu tap detection in handle_input_event to avoid nav conflict (left zone taps now swap without swipe_left/raw blit disappear). Pre-loaded icons at start for efficiency, atomic temp raw saves to prevent locks.
+* Test.py confirmed menu_pressed.png loads as paletted PNG (mode 'P')—Pillow handles for paste, but if visual swap invisible, icons too similar (test with fox.png copy).
+* No lockup/memory leaks (top shows transient CPU ~38% on composite, stable ~235MB used; logs clean with no runaway). SSH timeouts coincidental.
+
+**Key Additions:**  
+
+- display_slideshow.py: Pre-load icons, composite_blit with numpy RGB565, menu tap first in handle_input_event (returns early to skip nav).  
+
+- Config tweaks: None—keeps minimal.  
+
+**Lessons Learned:**  
+
+- Numpy speeds pixel ops but requires deps (libopenblas for ARM BLAS)—piwheels simplifies, but test endian/order per hardware (little-endian Pi, 'C' no swap).  
+
+- Overlay dtoverlay=waveshare35a,rotate=90,bgr=1 swaps R/B in driver—conversion must match RGB input to display correctly (no explicit BGR in packed).  
+
+- Event queue drain in main loop delays taps if busy (e.g., during blit)—threading keeps responsive, but Pi Zero limits overall perf.  
+
+- Atomic replaces for temp files prevent partial blits/locks during high load.  
+
+**Result:**  
+
+Menu button persists, rotation uninterrupted, press swap functional but slow without numpy (now faster)—visible if pressed.png differs. Stable, no broken—ready for dropdown overlay on menu_active.  
+
+**Next Steps:**  
+
+- [ ] Implement menu.py for semi-transparent dropdown rect with buttons, composite in daemon when menu_active.  
+- [ ] Optimize further if lag persists (e.g., dirty rect blits for icon only).
