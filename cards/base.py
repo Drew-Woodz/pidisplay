@@ -56,13 +56,17 @@ def draw_header(d, title):
     FG = tuple(cfg["colors"]["fg"])
     sz = cfg["fonts"]["header_size"]
     d.rectangle([0, 0, W, 38], fill=BG)
-    d.text((12, 8), title, fill=FG, font=font(sz))
+    d.text((36, 8), title, fill=FG, font=font(sz)) # shifted text left to accomidate menu icon
 
 def fmt_clock(time_str):
     if not time_str:
         return ""
     try:
-        t = datetime.strptime(time_str, "%H:%M")
+        if 'T' in time_str:  # Handle ISO like 2025-11-10T06:08:00
+            time_part = time_str.split('T')[1][:5]  # HH:MM
+            t = datetime.strptime(time_part, "%H:%M")
+        else:
+           t = datetime.strptime(time_str, "%H:%M")
         try:
             t.strftime("%-I")
             fmt = "%-I:%M %p"
